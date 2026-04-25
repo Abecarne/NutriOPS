@@ -85,19 +85,60 @@ create index if not exists day_targets_plan_idx on public.day_targets(plan_id);
 
 -- ---------------------------------------------------------------------
 -- TABLE : checkins
+-- Suivi quotidien : un athlète peut soumettre ou mettre à jour
+-- un check-in par date civile.
 -- ---------------------------------------------------------------------
 create table if not exists public.checkins (
   id            uuid primary key default gen_random_uuid(),
   athlete_id    uuid not null references public.athletes(id) on delete cascade,
-  week_start    date not null,
+  checkin_date  date not null default current_date,
   weight_kg     numeric(4,1) not null,
   energy_level  int not null check (energy_level between 1 and 5),
   sleep_quality int not null check (sleep_quality between 1 and 5),
   notes         text,
   submitted_at  timestamptz not null default now(),
-  unique (athlete_id, week_start)
+  unique (athlete_id, checkin_date)
 );
+
+-- Compatibilité si ce fichier est rejoué sur une base créée avec
+-- l'ancien modèle hebdomadaire (checkins.week_start).
+alter table public.checkins
+  add column if not exists checkin_date date;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'checkins'
+      and column_name = 'week_start'
+  ) then
+    execute 'update public.checkins set checkin_date = week_start where checkin_date is null';
+  end if;
+end $$;
+
+update public.checkins
+set checkin_date = current_date
+where checkin_date is null;
+
+alter table public.checkins
+  alter column checkin_date set default current_date,
+  alter column checkin_date set not null;
+
+alter table public.checkins
+  drop constraint if exists checkins_athlete_id_week_start_key,
+  drop constraint if exists checkins_athlete_id_checkin_date_key;
+
+alter table public.checkins
+  add constraint checkins_athlete_id_checkin_date_key unique (athlete_id, checkin_date);
+
+alter table public.checkins
+  drop column if exists week_start;
+
 create index if not exists checkins_athlete_idx on public.checkins(athlete_id);
+create index if not exists checkins_athlete_date_idx on public.checkins(athlete_id, checkin_date desc);
+create index if not exists checkins_date_idx on public.checkins(checkin_date desc);
 
 -- ---------------------------------------------------------------------
 -- TABLE : coach_notes
@@ -228,10 +269,12 @@ $$;
 
 grant execute on function public.get_athlete_by_token(uuid) to anon, authenticated;
 
--- Récupère un check-in existant pour la semaine courante (via token)
-create or replace function public.get_checkin_by_token(p_token uuid, p_week_start date)
+-- Récupère un check-in existant pour une date donnée (via token)
+drop function if exists public.get_checkin_by_token(uuid, date);
+create or replace function public.get_checkin_by_token(p_token uuid, p_checkin_date date)
 returns table (
   id            uuid,
+  checkin_date  date,
   weight_kg     numeric,
   energy_level  int,
   sleep_quality int,
@@ -242,18 +285,19 @@ language sql
 security definer
 set search_path = public
 as $$
-  select ci.id, ci.weight_kg, ci.energy_level, ci.sleep_quality, ci.notes, ci.submitted_at
+  select ci.id, ci.checkin_date, ci.weight_kg, ci.energy_level, ci.sleep_quality, ci.notes, ci.submitted_at
   from public.checkins ci
   join public.athletes a on a.id = ci.athlete_id
-  where a.checkin_token = p_token and ci.week_start = p_week_start;
+  where a.checkin_token = p_token and ci.checkin_date = p_checkin_date;
 $$;
 
 grant execute on function public.get_checkin_by_token(uuid, date) to anon, authenticated;
 
--- Soumission (upsert) d'un check-in par l'athlète via son token
+-- Soumission (upsert) d'un check-in quotidien par l'athlète via son token
+drop function if exists public.submit_checkin(uuid, date, numeric, int, int, text);
 create or replace function public.submit_checkin(
   p_token         uuid,
-  p_week_start    date,
+  p_checkin_date  date,
   p_weight_kg     numeric,
   p_energy_level  int,
   p_sleep_quality int,
@@ -273,16 +317,15 @@ begin
     raise exception 'Invalid check-in token';
   end if;
 
-  if p_energy_level not between 1 and 5 or p_sleep_quality not between 1 and 5 then
-    raise exception 'Ratings must be between 1 and 5';
-  end if;
+  -- Range validation is enforced by the table CHECK constraints on
+  -- energy_level / sleep_quality. We let the INSERT raise on its own.
 
   insert into public.checkins (
-    athlete_id, week_start, weight_kg, energy_level, sleep_quality, notes, submitted_at
+    athlete_id, checkin_date, weight_kg, energy_level, sleep_quality, notes, submitted_at
   ) values (
-    v_athlete_id, p_week_start, p_weight_kg, p_energy_level, p_sleep_quality, p_notes, now()
+    v_athlete_id, p_checkin_date, p_weight_kg, p_energy_level, p_sleep_quality, p_notes, now()
   )
-  on conflict (athlete_id, week_start) do update set
+  on conflict (athlete_id, checkin_date) do update set
     weight_kg     = excluded.weight_kg,
     energy_level  = excluded.energy_level,
     sleep_quality = excluded.sleep_quality,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { TOKENS } from '@/components/dashboard/kit';
 import { Textarea } from '@/components/ui/Textarea';
 import { useDebouncedEffect } from '@/hooks/useDebounce';
 import { distributeMacros, kcalFromMacros } from '@/lib/utils';
@@ -25,7 +26,11 @@ export function DayTargetCard({ planId, dayType, initial, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null);
   const dirty = useRef(false);
 
-  // reset local when initial plan changes
+  // Reset local state ONLY when the underlying target row changes
+  // (e.g. plan creation pending→uuid, week change). We deliberately
+  // do NOT depend on the value fields: a server echo after a save
+  // could otherwise clobber a keystroke the user typed during the
+  // in-flight upsert.
   useEffect(() => {
     setLocal({
       calories: initial.calories,
@@ -35,7 +40,8 @@ export function DayTargetCard({ planId, dayType, initial, onSaved }: Props) {
       notes: initial.notes ?? '',
     });
     dirty.current = false;
-  }, [initial.id, initial.calories, initial.protein_g, initial.carbs_g, initial.fat_g, initial.notes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial.id]);
 
   useDebouncedEffect(
     () => {
@@ -79,11 +85,11 @@ export function DayTargetCard({ planId, dayType, initial, onSaved }: Props) {
   const drift = Math.abs(computedKcal - local.calories);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 flex flex-col gap-3">
+    <div className="rounded-md bg-white p-4 flex flex-col gap-3" style={{ border: `1px solid ${TOKENS.HAIRLINE}` }}>
       <div className="flex items-center justify-between">
         <div className="text-sm font-medium text-slate-900">{DAY_TYPE_LABELS[dayType]}</div>
         <div className="text-xs text-slate-500 h-4">
-          {error ? <span className="text-red-600">{error}</span> : saving ? 'Sauvegarde…' : savedAt ? '✓ Sauvegardé' : ''}
+          {error ? <span style={{ color: TOKENS.AMBER }}>{error}</span> : saving ? 'Sauvegarde…' : savedAt ? '✓ Sauvegardé' : ''}
         </div>
       </div>
 
@@ -117,7 +123,7 @@ export function DayTargetCard({ planId, dayType, initial, onSaved }: Props) {
       </div>
 
       {local.calories > 0 && drift > 50 && (
-        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+        <div className="text-xs rounded px-2 py-1" style={{ color: TOKENS.AMBER, background: '#FFF7E6', border: `1px solid ${TOKENS.HAIRLINE}` }}>
           Macros = {computedKcal} kcal ({drift > 0 ? `±${drift}` : '='} vs calories déclarées)
         </div>
       )}
@@ -148,16 +154,16 @@ function MacroInput({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <span className="text-[11px] uppercase tracking-[0.12em] font-medium text-slate-500">{label}</span>
       <div className="relative">
         <input
           type="number"
           min={0}
           value={value}
           onChange={e => onChange(e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
-          className={`w-full h-10 px-3 pr-10 rounded-md border text-sm
+          className={`w-full h-9 px-3 pr-10 rounded-md border text-[13px]
                       focus:outline-none focus:ring-2 focus:ring-[var(--brand)] focus:border-transparent
-                      ${highlight ? 'border-slate-400 font-semibold' : 'border-slate-300'}`}
+                      ${highlight ? 'border-slate-400 font-semibold' : 'border-[#EAE9E5]'}`}
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
           {unit}

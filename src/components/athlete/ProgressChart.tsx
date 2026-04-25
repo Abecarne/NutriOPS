@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   CartesianGrid,
   Legend,
@@ -17,23 +18,26 @@ interface Props {
 }
 
 export function ProgressChart({ checkins, primaryColor }: Props) {
-  // Oldest → newest
-  const rows = [...checkins].sort((a, b) => a.week_start.localeCompare(b.week_start));
+  const data = useMemo(
+    () =>
+      [...checkins]
+        .sort((a, b) => a.checkin_date.localeCompare(b.checkin_date))
+        .map(c => ({
+          week: formatDateShort(c.checkin_date),
+          poids: c.weight_kg,
+          energie: c.energy_level,
+          sommeil: c.sleep_quality,
+        })),
+    [checkins],
+  );
 
-  if (rows.length === 0) {
+  if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-sm text-slate-500 border border-dashed border-slate-200 rounded-lg">
         Aucun check-in pour tracer la courbe.
       </div>
     );
   }
-
-  const data = rows.map(c => ({
-    week: formatDateShort(c.week_start),
-    poids: c.weight_kg,
-    energie: c.energy_level,
-    sommeil: c.sleep_quality,
-  }));
 
   return (
     <div className="h-72">

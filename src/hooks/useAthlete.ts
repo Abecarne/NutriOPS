@@ -53,3 +53,20 @@ export async function updateAthlete(
   if (error) throw error;
   return data as Athlete;
 }
+
+/**
+ * Rotates the athlete's check-in token. Invalidates the previous
+ * shareable URL — used when a link has been leaked or the athlete
+ * changed phone/email.
+ */
+export async function regenerateCheckinToken(id: string): Promise<Athlete> {
+  const newToken = crypto.randomUUID();
+  const { data, error } = await supabase
+    .from('athletes')
+    .update({ checkin_token: newToken })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data as Athlete;
+}

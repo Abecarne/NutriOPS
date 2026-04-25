@@ -20,7 +20,7 @@ interface Props {
 }
 
 export function NutritionPlanEditor({ athleteId, weekStart, onWeekChange }: Props) {
-  const { data, loading, error, setData, refresh } = useNutritionPlan(athleteId, weekStart);
+  const { data, loading, error, setData } = useNutritionPlan(athleteId, weekStart);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -59,9 +59,14 @@ export function NutritionPlanEditor({ athleteId, weekStart, onWeekChange }: Prop
             onCopy={() => createPlan(true)}
           />
         ) : (
-          <PlanGrid data={data} onRefresh={refresh} onTargetSaved={t => {
-            setData(prev => prev ? { ...prev, targets: { ...prev.targets, [t.day_type]: t } } : prev);
-          }} />
+          <PlanGrid
+            data={data}
+            onTargetSaved={t => {
+              setData(prev =>
+                prev ? { ...prev, targets: { ...prev.targets, [t.day_type]: t } } : prev,
+              );
+            }}
+          />
         )}
       </CardBody>
     </Card>
@@ -103,7 +108,6 @@ function PlanGrid({
   onTargetSaved,
 }: {
   data: PlanWithTargets;
-  onRefresh: () => void;
   onTargetSaved: (t: DayTarget) => void;
 }) {
   return (

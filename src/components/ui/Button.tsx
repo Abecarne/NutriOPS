@@ -17,14 +17,14 @@ const base =
 
 const variants: Record<Variant, string> = {
   primary:   'bg-[var(--brand)] text-white hover:brightness-95 focus-visible:ring-[var(--brand)]',
-  secondary: 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-50 focus-visible:ring-slate-400',
-  ghost:     'bg-transparent text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-400',
-  danger:    'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500',
+  secondary: 'bg-white border border-[#EAE9E5] text-slate-700 hover:text-slate-900 hover:bg-[#FAFAF8] focus-visible:ring-slate-400',
+  ghost:     'bg-transparent text-slate-500 hover:text-slate-900 hover:bg-white focus-visible:ring-slate-400',
+  danger:    'bg-[#C2772A] text-white hover:brightness-95 focus-visible:ring-[#C2772A]',
 };
 
 const sizes: Record<Size, string> = {
-  sm: 'h-8 px-3 text-sm',
-  md: 'h-10 px-4 text-sm',
+  sm: 'h-8 px-3 text-[12px]',
+  md: 'h-9 px-4 text-[12px]',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

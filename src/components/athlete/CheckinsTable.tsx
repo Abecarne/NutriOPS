@@ -14,7 +14,7 @@ export function CheckinsTable({ checkins }: { checkins: Checkin[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
-            <th className="py-2 pr-4 font-medium">Semaine</th>
+            <th className="py-2 pr-4 font-medium">Date</th>
             <th className="py-2 pr-4 font-medium">Poids</th>
             <th className="py-2 pr-4 font-medium">Énergie</th>
             <th className="py-2 pr-4 font-medium">Sommeil</th>
@@ -24,7 +24,7 @@ export function CheckinsTable({ checkins }: { checkins: Checkin[] }) {
         <tbody>
           {checkins.map(c => (
             <tr key={c.id} className="border-b border-slate-100">
-              <td className="py-2 pr-4 text-slate-700">{formatDate(c.week_start)}</td>
+              <td className="py-2 pr-4 text-slate-700">{formatDate(c.checkin_date)}</td>
               <td className="py-2 pr-4 text-slate-900 font-medium">{c.weight_kg} kg</td>
               <td className="py-2 pr-4 text-amber-600">{'★'.repeat(c.energy_level)}<span className="text-slate-200">{'★'.repeat(5 - c.energy_level)}</span></td>
               <td className="py-2 pr-4 text-blue-600">{'★'.repeat(c.sleep_quality)}<span className="text-slate-200">{'★'.repeat(5 - c.sleep_quality)}</span></td>

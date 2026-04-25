@@ -10,6 +10,11 @@ export function isoWeekStart(date: Date = new Date()): string {
   return format(startOfISOWeek(date), 'yyyy-MM-dd');
 }
 
+/** Returns a local calendar date as YYYY-MM-DD. */
+export function isoDate(date: Date = new Date()): string {
+  return format(date, 'yyyy-MM-dd');
+}
+
 export function shiftWeek(weekStart: string, delta: number): string {
   return format(addWeeks(parseISO(weekStart), delta), 'yyyy-MM-dd');
 }

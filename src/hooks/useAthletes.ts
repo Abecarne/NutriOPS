@@ -28,19 +28,20 @@ export function useAthletes() {
 
       const { data: checkins, error: e2 } = await supabase
         .from('checkins')
-        .select('athlete_id, weight_kg, submitted_at, week_start')
+        .select('athlete_id, weight_kg, submitted_at, checkin_date')
         .in('athlete_id', list.map(a => a.id))
+        .order('checkin_date', { ascending: false })
         .order('submitted_at', { ascending: false })
         .abortSignal(timeout.signal);
       if (e2) throw e2;
 
-      const latestByAthlete = new Map<string, Pick<Checkin, 'weight_kg' | 'submitted_at' | 'week_start'>>();
+      const latestByAthlete = new Map<string, Pick<Checkin, 'weight_kg' | 'submitted_at' | 'checkin_date'>>();
       for (const ci of (checkins ?? [])) {
         if (!latestByAthlete.has(ci.athlete_id)) {
           latestByAthlete.set(ci.athlete_id, {
             weight_kg: ci.weight_kg,
             submitted_at: ci.submitted_at,
-            week_start: ci.week_start,
+            checkin_date: ci.checkin_date,
           });
         }
       }

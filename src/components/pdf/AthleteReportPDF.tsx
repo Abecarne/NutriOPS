@@ -251,11 +251,11 @@ export function AthleteReportPDF({ data }: { data: ReportData }) {
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Progression — 12 dernières semaines</Text>
+        <Text style={styles.sectionTitle}>Progression — 12 derniers check-ins</Text>
 
         <View style={styles.table}>
           <View style={[styles.checkinHeaderRow]}>
-            <Text style={[styles.checkinHeaderCell, { width: 90 }]}>Semaine</Text>
+            <Text style={[styles.checkinHeaderCell, { width: 90 }]}>Date</Text>
             <Text style={[styles.checkinHeaderCell, { width: 60 }]}>Poids</Text>
             <Text style={[styles.checkinHeaderCell, { width: 80 }]}>Énergie</Text>
             <Text style={[styles.checkinHeaderCell, { width: 80 }]}>Sommeil</Text>
@@ -271,7 +271,7 @@ export function AthleteReportPDF({ data }: { data: ReportData }) {
             checkins.map((c, idx) => (
               <View key={c.id} style={idx === checkins.length - 1 ? styles.rowLast : styles.row}>
                 <Text style={[styles.checkinBodyCell, { width: 90, borderLeftWidth: 0 }]}>
-                  {fmt(c.week_start)}
+                  {fmt(c.checkin_date)}
                 </Text>
                 <Text style={[styles.checkinBodyCell, { width: 60 }]}>{c.weight_kg} kg</Text>
                 <Text style={[styles.checkinBodyCell, { width: 80 }]}>{stars(c.energy_level)}</Text>

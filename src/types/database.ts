@@ -61,7 +61,7 @@ export interface DayTarget {
 export interface Checkin {
   id: string;
   athlete_id: string;
-  week_start: string;
+  checkin_date: string;
   weight_kg: number;
   energy_level: number;
   sleep_quality: number;
@@ -78,5 +78,5 @@ export interface CoachNote {
 }
 
 export interface AthleteRosterRow extends Athlete {
-  last_checkin: Pick<Checkin, 'weight_kg' | 'submitted_at' | 'week_start'> | null;
+  last_checkin: Pick<Checkin, 'weight_kg' | 'submitted_at' | 'checkin_date'> | null;
 }

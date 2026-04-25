@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import { Textarea } from '@/components/ui/Textarea';
 import { supabase } from '@/lib/supabase';
-import { isoWeekStart } from '@/lib/utils';
+import { isoDate } from '@/lib/utils';
 
 const schema = z.object({
   weight_kg: z.coerce.number().min(30, 'Poids trop bas').max(250, 'Poids trop élevé'),
@@ -39,7 +39,7 @@ interface ExistingCheckin {
 
 export function CheckinPage() {
   const { token } = useParams<{ token: string }>();
-  const weekStart = useMemo(() => isoWeekStart(), []);
+  const checkinDate = useMemo(() => isoDate(), []);
   const [athlete, setAthlete] = useState<PublicAthlete | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -70,7 +70,7 @@ export function CheckinPage() {
 
         const { data: checkinRows, error: checkinError } = await supabase.rpc('get_checkin_by_token', {
           p_token: token,
-          p_week_start: weekStart,
+          p_checkin_date: checkinDate,
         });
         if (checkinError) throw checkinError;
         const existing = (checkinRows?.[0] ?? null) as ExistingCheckin | null;
@@ -94,17 +94,18 @@ export function CheckinPage() {
     }
     load();
     return () => { mounted = false; };
-  }, [form, token, weekStart]);
+  }, [checkinDate, form, token]);
 
   const firstName = athlete?.full_name.split(' ')[0] ?? '';
 
   const onSubmit = async (values: FormValues) => {
     if (!token) return;
+    form.clearErrors('root');
     setSubmitted(false);
     try {
       const { error } = await supabase.rpc('submit_checkin', {
         p_token: token,
-        p_week_start: weekStart,
+        p_checkin_date: checkinDate,
         p_weight_kg: values.weight_kg,
         p_energy_level: values.energy_level,
         p_sleep_quality: values.sleep_quality,
@@ -142,9 +143,9 @@ export function CheckinPage() {
       <div className="w-full max-w-lg bg-white border border-slate-200 rounded-xl shadow-sm p-6">
         <div className="mb-6">
           <div className="text-sm text-slate-500">{athlete.club_name || 'NutriOps'}</div>
-          <h1 className="text-2xl font-semibold text-slate-900">Check-in hebdomadaire</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Check-in quotidien</h1>
           <p className="text-sm text-slate-600 mt-1">
-            Bonjour {firstName}, renseigne tes données de la semaine.
+            Bonjour {firstName}, renseigne tes données du jour.
           </p>
         </div>
 

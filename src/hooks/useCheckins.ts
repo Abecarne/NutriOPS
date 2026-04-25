@@ -22,7 +22,7 @@ export function useCheckins(athleteId: string | undefined, limit = 12) {
         .from('checkins')
         .select('*')
         .eq('athlete_id', athleteId)
-        .order('week_start', { ascending: false })
+        .order('checkin_date', { ascending: false })
         .limit(limit)
         .abortSignal(timeout.signal);
       if (e) throw e;

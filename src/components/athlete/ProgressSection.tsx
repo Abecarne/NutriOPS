@@ -19,7 +19,7 @@ export function ProgressSection({ athleteId, weekStart }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Progression — 12 dernières semaines</CardTitle>
+        <CardTitle>Progression — 12 derniers check-ins</CardTitle>
       </CardHeader>
       <CardBody className="flex flex-col gap-6">
         {error && <ErrorMessage message={error} />}

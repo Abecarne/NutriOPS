@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { TOKENS } from '@/components/dashboard/kit';
 
 interface ModalProps {
   open: boolean;
@@ -37,10 +38,14 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative bg-white rounded-xl shadow-xl w-full ${SIZES[size]} max-h-[90vh] overflow-y-auto`}
+        className={`relative bg-white rounded-md w-full ${SIZES[size]} max-h-[90vh] overflow-y-auto`}
+        style={{ border: `1px solid ${TOKENS.HAIRLINE}` }}
       >
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+        <div
+          className="px-5 py-4 flex items-center justify-between"
+          style={{ borderBottom: `1px solid ${TOKENS.HAIRLINE}`, background: TOKENS.PANEL_BG }}
+        >
+          <h3 className="text-[15px] font-medium tracking-tight text-slate-900">{title}</h3>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-700 transition-colors"

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { formatDate, getCheckinUrl } from '@/lib/utils';
-import { updateAthlete } from '@/hooks/useAthlete';
+import { regenerateCheckinToken, updateAthlete } from '@/hooks/useAthlete';
 import type { Athlete } from '@/types/database';
 
 interface Props {
@@ -27,6 +27,7 @@ export function AthleteProfile({ athlete, onUpdated }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const save = async () => {
     setSaving(true);
@@ -69,6 +70,23 @@ export function AthleteProfile({ athlete, onUpdated }: Props) {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       /* clipboard denied */
+    }
+  };
+
+  const regenerate = async () => {
+    const ok = window.confirm(
+      "Régénérer le lien de check-in invalidera l'URL actuellement partagée avec l'athlète. Continuer ?",
+    );
+    if (!ok) return;
+    setRegenerating(true);
+    setError(null);
+    try {
+      const updated = await regenerateCheckinToken(athlete.id);
+      onUpdated(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Régénération impossible');
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -141,9 +159,14 @@ export function AthleteProfile({ athlete, onUpdated }: Props) {
                 <div className="text-xs uppercase tracking-wide text-slate-500 mb-0.5">Lien de check-in</div>
                 <div className="text-sm text-slate-700 truncate">{getCheckinUrl(athlete.checkin_token)}</div>
               </div>
-              <Button size="sm" variant="secondary" onClick={copyLink}>
-                {copied ? '✓ Copié' : 'Copier le lien'}
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button size="sm" variant="secondary" onClick={copyLink}>
+                  {copied ? '✓ Copié' : 'Copier le lien'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={regenerate} loading={regenerating}>
+                  Régénérer
+                </Button>
+              </div>
             </div>
           </div>
         )}

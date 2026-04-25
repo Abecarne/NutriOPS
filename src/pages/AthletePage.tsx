@@ -5,6 +5,7 @@ import { AthleteProfile } from '@/components/athlete/AthleteProfile';
 import { NutritionPlanEditor } from '@/components/athlete/NutritionPlanEditor';
 import { ProgressSection } from '@/components/athlete/ProgressSection';
 import { AthleteReportPDF, type ReportData } from '@/components/pdf/AthleteReportPDF';
+import { SectionLabel, StatusDot } from '@/components/dashboard/kit';
 import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { Spinner } from '@/components/ui/Spinner';
@@ -66,22 +67,38 @@ export function AthletePage() {
   if (!athlete) return <ErrorMessage message="Athlète introuvable." />;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">{athlete.full_name}</h1>
-          <p className="text-sm text-slate-500">{athlete.sport}</p>
+    <div className="flex flex-col gap-8">
+      <section>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <SectionLabel index="01" title={athlete.full_name} />
+            <div className="mt-2 flex items-center gap-3 text-[13px] text-slate-500">
+              <span>{athlete.sport}</span>
+              <StatusDot status={athlete.status} />
+            </div>
+          </div>
+          <Button onClick={exportReport} loading={exporting}>
+            Export report
+          </Button>
         </div>
-        <Button onClick={exportReport} loading={exporting}>
-          Exporter rapport
-        </Button>
-      </div>
+      </section>
 
       {exportError && <ErrorMessage message={exportError} />}
 
-      <AthleteProfile athlete={athlete} onUpdated={setAthlete} />
-      <NutritionPlanEditor athleteId={athlete.id} weekStart={weekStart} onWeekChange={setWeekStart} />
-      <ProgressSection athleteId={athlete.id} weekStart={weekStart} />
+      <section className="flex flex-col gap-4">
+        <SectionLabel index="02" title="Profile" />
+        <AthleteProfile athlete={athlete} onUpdated={setAthlete} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionLabel index="03" title="Weekly nutrition plan" />
+        <NutritionPlanEditor athleteId={athlete.id} weekStart={weekStart} onWeekChange={setWeekStart} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionLabel index="04" title="Progression" />
+        <ProgressSection athleteId={athlete.id} weekStart={weekStart} />
+      </section>
     </div>
   );
 }
@@ -115,7 +132,7 @@ async function loadReportData(athleteId: string, weekStart: string): Promise<{
     .from('checkins')
     .select('*')
     .eq('athlete_id', athleteId)
-    .order('week_start', { ascending: false })
+    .order('checkin_date', { ascending: false })
     .limit(12);
   if (checkinError) throw checkinError;
 
