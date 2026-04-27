@@ -2,11 +2,10 @@ import { useMemo, useState } from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { useParams } from 'react-router-dom';
 import { AthleteProfile } from '@/components/athlete/AthleteProfile';
+import { AthleteProgress } from '@/components/athlete/AthleteProgress';
 import { CheckinDetailModal } from '@/components/athlete/CheckinDetailModal';
 import { CheckinsTable } from '@/components/athlete/CheckinsTable';
-import { DailyNutritionEditor } from '@/components/athlete/DailyNutritionEditor';
-import { ProgressSection } from '@/components/athlete/ProgressSection';
-import { TrainingPlanner } from '@/components/athlete/TrainingPlanner';
+import { WeekWorkbench } from '@/components/athlete/WeekWorkbench';
 import { AthleteReportPDF, type ReportData } from '@/components/pdf/AthleteReportPDF';
 import { FilterChip, KPICard, SectionLabel, StatusDot, TOKENS } from '@/components/dashboard/kit';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -24,13 +23,12 @@ import { formatWeekRange, isoDate, isoWeekEnd, isoWeekStart } from '@/lib/utils'
 import { NUTRITION_ADHERENCE_LABELS, TRAINING_SESSION_STATUS_LABELS, TRAINING_SESSION_TYPE_LABELS } from '@/types/database';
 import type { Checkin, CoachNote, DailyNutritionTarget, NutritionMealItem, TrainingSession } from '@/types/database';
 
-type Tab = 'overview' | 'daily' | 'training' | 'nutrition' | 'progress' | 'reports';
+type Tab = 'overview' | 'week' | 'daily' | 'progress' | 'reports';
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'overview', label: 'Overview' },
+  { key: 'week', label: 'Week' },
   { key: 'daily', label: 'Daily' },
-  { key: 'training', label: 'Training' },
-  { key: 'nutrition', label: 'Nutrition' },
   { key: 'progress', label: 'Progress' },
   { key: 'reports', label: 'Reports' },
 ];
@@ -175,31 +173,22 @@ export function AthletePage() {
         sessions={training.sessions}
       />
 
-      {activeTab === 'training' && (
-        <TrainingPlanner
+      {activeTab === 'week' && (
+        <WeekWorkbench
           athleteId={athlete.id}
           weekStart={weekStart}
           onWeekChange={setWeekStart}
           sessionsByDate={training.byDate}
           sessions={training.sessions}
-          loading={training.loading}
-          error={training.error}
+          trainingLoading={training.loading}
+          trainingError={training.error}
           upsertSession={training.upsertSession}
           deleteSession={training.deleteSession}
           duplicatePreviousWeek={training.duplicatePreviousWeek}
-        />
-      )}
-
-      {activeTab === 'nutrition' && (
-        <DailyNutritionEditor
-          athleteId={athlete.id}
-          weekStart={weekStart}
-          onWeekChange={setWeekStart}
           targetsByDate={nutrition.byDate}
           mealItemsByTargetId={nutrition.mealItemsByTargetId}
-          sessions={training.sessions}
-          loading={nutrition.loading}
-          error={nutrition.error}
+          nutritionLoading={nutrition.loading}
+          nutritionError={nutrition.error}
           upsertTarget={nutrition.upsertTarget}
           upsertMealItem={nutrition.upsertMealItem}
           deleteMealItem={nutrition.deleteMealItem}
@@ -208,12 +197,7 @@ export function AthletePage() {
       )}
 
       {activeTab === 'progress' && (
-        <ProgressSection
-          athleteId={athlete.id}
-          weekStart={weekStart}
-          sessions={training.sessions}
-          targets={nutrition.targets}
-        />
+        <AthleteProgress athleteId={athlete.id} />
       )}
 
       {activeTab === 'reports' && (
