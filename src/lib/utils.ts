@@ -1,4 +1,4 @@
-import { format, startOfISOWeek, endOfISOWeek, addWeeks, parseISO } from 'date-fns';
+import { format, startOfISOWeek, endOfISOWeek, addDays, addWeeks, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export function cn(...classes: Array<string | false | null | undefined>): string {
@@ -17,6 +17,19 @@ export function isoDate(date: Date = new Date()): string {
 
 export function shiftWeek(weekStart: string, delta: number): string {
   return format(addWeeks(parseISO(weekStart), delta), 'yyyy-MM-dd');
+}
+
+export function shiftDate(date: string, delta: number): string {
+  return format(addDays(parseISO(date), delta), 'yyyy-MM-dd');
+}
+
+export function isoWeekDays(weekStart: string): string[] {
+  const start = parseISO(weekStart);
+  return Array.from({ length: 7 }, (_, index) => format(addDays(start, index), 'yyyy-MM-dd'));
+}
+
+export function isoWeekEnd(weekStart: string): string {
+  return format(endOfISOWeek(parseISO(weekStart)), 'yyyy-MM-dd');
 }
 
 export function formatWeekRange(weekStart: string): string {

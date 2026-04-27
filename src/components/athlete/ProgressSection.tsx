@@ -6,13 +6,16 @@ import { CheckinsTable } from './CheckinsTable';
 import { CoachNotes } from './CoachNotes';
 import { useCheckins } from '@/hooks/useCheckins';
 import { useAuth } from '@/context/AuthContext';
+import type { DailyNutritionTarget, TrainingSession } from '@/types/database';
 
 interface Props {
   athleteId: string;
   weekStart: string;
+  sessions?: TrainingSession[];
+  targets?: DailyNutritionTarget[];
 }
 
-export function ProgressSection({ athleteId, weekStart }: Props) {
+export function ProgressSection({ athleteId, weekStart, sessions = [], targets = [] }: Props) {
   const { coach } = useAuth();
   const { checkins, loading, error } = useCheckins(athleteId, 12);
 
@@ -27,7 +30,12 @@ export function ProgressSection({ athleteId, weekStart }: Props) {
           <div className="py-10 flex justify-center"><Spinner className="h-6 w-6" /></div>
         ) : (
           <>
-            <ProgressChart checkins={checkins} primaryColor={coach?.primary_color ?? '#1D9E75'} />
+            <ProgressChart
+              checkins={checkins}
+              sessions={sessions}
+              targets={targets}
+              primaryColor={coach?.primary_color ?? '#1D9E75'}
+            />
             <CheckinsTable checkins={checkins} />
           </>
         )}

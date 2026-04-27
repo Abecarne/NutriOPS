@@ -39,25 +39,27 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="min-h-screen w-full font-sans text-slate-900"
+      className="h-screen w-full overflow-hidden font-sans text-slate-900"
       style={{
         background: TOKENS.BG,
         fontFeatureSettings: '"cv11", "ss01"',
       }}
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-[1440px]">
-        <Sidebar
-          items={navItems}
-          activeKind={activeKind}
-          coachName={coach?.full_name ?? 'Coach'}
-          coachInitials={initialsOf(coach?.full_name ?? 'Coach')}
-          coachRole={coach?.club_name ?? 'Head coach'}
-          weekLabel="Current week"
-          pulse={{ values: [3, 5, 4, 6, 7, 5, 8], received: 0, expected: 0 }}
-          LinkComponent={RouterLink}
-        />
+      <div className="flex h-screen w-full">
+        <div className="h-screen shrink-0">
+          <Sidebar
+            items={navItems}
+            activeKind={activeKind}
+            coachName={coach?.full_name ?? 'Coach'}
+            coachInitials={initialsOf(coach?.full_name ?? 'Coach')}
+            coachRole={coach?.club_name ?? 'Head coach'}
+            weekLabel="Current week"
+            pulse={{ values: [3, 5, 4, 6, 7, 5, 8], received: 0, expected: 0 }}
+            LinkComponent={RouterLink}
+          />
+        </div>
 
-        <main className="flex-1 flex flex-col min-w-0" style={{ borderLeft: `1px solid ${TOKENS.HAIRLINE}` }}>
+        <main className="h-screen flex-1 overflow-y-auto flex flex-col min-w-0" style={{ borderLeft: `1px solid ${TOKENS.HAIRLINE}` }}>
           <header
             className="px-5 sm:px-10 py-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
             style={{ borderBottom: `1px solid ${TOKENS.HAIRLINE}` }}

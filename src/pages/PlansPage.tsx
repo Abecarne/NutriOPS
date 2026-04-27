@@ -14,32 +14,32 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useAthletes } from '@/hooks/useAthletes';
 import { createRequestTimeout, requestErrorMessage } from '@/lib/requestTimeout';
 import { supabase } from '@/lib/supabase';
-import { formatWeekRange, isoWeekStart } from '@/lib/utils';
-import type { AthleteRosterRow, DayTarget, NutritionPlan } from '@/types/database';
+import { formatWeekRange, isoWeekEnd, isoWeekStart } from '@/lib/utils';
+import type { AthleteRosterRow, DailyNutritionTarget, TrainingSession } from '@/types/database';
 
-interface PlanRow {
-  plan: NutritionPlan;
-  targets: DayTarget[];
+type PlanFilter = 'all' | 'complete' | 'missing';
+
+interface WeekPlanningRow {
+  athlete: AthleteRosterRow;
+  targets: DailyNutritionTarget[];
+  sessions: TrainingSession[];
 }
-
-type PlanFilter = 'all' | 'defined' | 'missing';
 
 export function PlansPage() {
   const { athletes, loading: athletesLoading, error: athletesError } = useAthletes();
   const weekStart = useMemo(() => isoWeekStart(), []);
-  const { plansByAthlete, loading: plansLoading, error: plansError } = usePlansForWeek(athletes, weekStart);
+  const weekEnd = useMemo(() => isoWeekEnd(weekStart), [weekStart]);
+  const { rows, loading: plansLoading, error: plansError } = useWeekPlanning(athletes, weekStart, weekEnd);
   const [filter, setFilter] = useState<PlanFilter>('all');
 
-  const rows = useMemo(
-    () => athletes.map(athlete => ({ athlete, planRow: plansByAthlete.get(athlete.id) ?? null })),
-    [athletes, plansByAthlete],
-  );
+  const complete = rows.filter(row => row.targets.length === 7).length;
+  const missing = rows.length - complete;
+  const sessions = rows.reduce((sum, row) => sum + row.sessions.length, 0);
+  const load = rows.reduce((sum, row) => sum + row.sessions.reduce((s, session) => s + (session.internal_load ?? ((session.planned_duration_min ?? 0) * (session.planned_intensity ?? 0))), 0), 0);
 
-  const defined = rows.filter(row => row.planRow).length;
-  const missing = rows.length - defined;
   const filtered = rows.filter(row => {
-    if (filter === 'defined') return Boolean(row.planRow);
-    if (filter === 'missing') return !row.planRow;
+    if (filter === 'complete') return row.targets.length === 7;
+    if (filter === 'missing') return row.targets.length < 7;
     return true;
   });
 
@@ -49,21 +49,21 @@ export function PlansPage() {
   return (
     <div className="flex flex-col gap-8">
       <section>
-        <SectionLabel index="01" title="Week planning" />
+        <SectionLabel index="01" title="Weekly planning" />
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px mt-4 rounded-md overflow-hidden" style={{ background: TOKENS.HAIRLINE }}>
-          <KPICard label="Selected week" value={defined + missing} subline={formatWeekRange(weekStart)} badge="athletes" />
-          <KPICard label="Plans defined" value={defined} subline="Athletes with a plan this week" progress={rows.length ? defined / rows.length : 0} />
-          <KPICard label="Missing plans" value={missing} subline="Need creation or copy" delta={{ value: String(missing), tone: missing ? 'neg' : 'mute', text: 'open' }} />
-          <KPICard label="Targets filled" value={totalTargets(rows)} subline="Day target rows available" badge="4 types" />
+          <KPICard label="Selected week" value={rows.length} subline={formatWeekRange(weekStart)} badge="athletes" />
+          <KPICard label="Nutrition complete" value={`${complete}/${rows.length}`} subline="7 daily targets defined" progress={rows.length ? complete / rows.length : 0} />
+          <KPICard label="Training sessions" value={sessions} subline="Planned this week" badge="training" />
+          <KPICard label="Estimated load" value={load} subline="Duration x intensity/RPE" delta={{ value: String(missing), tone: missing ? 'neg' : 'mute', text: 'missing nutrition' }} />
         </div>
       </section>
 
       <section>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-baseline lg:justify-between">
-          <SectionLabel index="02" title="Plan coverage" count={filtered.length} />
+          <SectionLabel index="02" title="Planning coverage" count={filtered.length} />
           <div className="flex flex-wrap items-center gap-1">
             <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>All ({rows.length})</FilterChip>
-            <FilterChip active={filter === 'defined'} onClick={() => setFilter('defined')}>Defined ({defined})</FilterChip>
+            <FilterChip active={filter === 'complete'} onClick={() => setFilter('complete')}>Complete ({complete})</FilterChip>
             <FilterChip active={filter === 'missing'} onClick={() => setFilter('missing')}>Missing ({missing})</FilterChip>
           </div>
         </div>
@@ -77,7 +77,7 @@ export function PlansPage() {
           {loading ? (
             <div className="p-10 flex justify-center"><Spinner className="h-6 w-6" /></div>
           ) : filtered.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">No plans match this filter.</div>
+            <div className="p-10 text-center text-sm text-slate-500">No planning rows match this filter.</div>
           ) : (
             <div className="overflow-x-auto">
               <PlansTable rows={filtered} />
@@ -89,14 +89,14 @@ export function PlansPage() {
   );
 }
 
-function usePlansForWeek(athletes: AthleteRosterRow[], weekStart: string) {
-  const [plansByAthlete, setPlansByAthlete] = useState<Map<string, PlanRow>>(new Map());
+function useWeekPlanning(athletes: AthleteRosterRow[], weekStart: string, weekEnd: string) {
+  const [rows, setRows] = useState<WeekPlanningRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (athletes.length === 0) {
-      setPlansByAthlete(new Map());
+      setRows([]);
       setLoading(false);
       return;
     }
@@ -105,55 +105,49 @@ function usePlansForWeek(athletes: AthleteRosterRow[], weekStart: string) {
     setError(null);
     try {
       const athleteIds = athletes.map(athlete => athlete.id);
-      const { data: plans, error: plansError } = await supabase
-        .from('nutrition_plans')
+      const { data: targets, error: targetsError } = await supabase
+        .from('daily_nutrition_targets')
         .select('*')
         .in('athlete_id', athleteIds)
-        .eq('week_start', weekStart)
+        .gte('target_date', weekStart)
+        .lte('target_date', weekEnd)
         .abortSignal(timeout.signal);
-      if (plansError) throw plansError;
+      if (targetsError) throw targetsError;
 
-      const planRows = (plans ?? []) as NutritionPlan[];
-      const targetsByPlanId = new Map<string, DayTarget[]>();
-      if (planRows.length > 0) {
-        const { data: targets, error: targetsError } = await supabase
-          .from('day_targets')
-          .select('*')
-          .in('plan_id', planRows.map(plan => plan.id))
-          .abortSignal(timeout.signal);
-        if (targetsError) throw targetsError;
-        for (const target of (targets ?? []) as DayTarget[]) {
-          targetsByPlanId.set(target.plan_id, [...(targetsByPlanId.get(target.plan_id) ?? []), target]);
-        }
-      }
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('training_sessions')
+        .select('*')
+        .in('athlete_id', athleteIds)
+        .gte('session_date', weekStart)
+        .lte('session_date', weekEnd)
+        .abortSignal(timeout.signal);
+      if (sessionsError) throw sessionsError;
 
-      const next = new Map<string, PlanRow>();
-      for (const plan of planRows) {
-        next.set(plan.athlete_id, { plan, targets: targetsByPlanId.get(plan.id) ?? [] });
-      }
-      setPlansByAthlete(next);
+      const targetsByAthlete = groupByAthlete((targets ?? []) as DailyNutritionTarget[]);
+      const sessionsByAthlete = groupByAthlete((sessions ?? []) as TrainingSession[]);
+      setRows(athletes.map(athlete => ({
+        athlete,
+        targets: targetsByAthlete.get(athlete.id) ?? [],
+        sessions: sessionsByAthlete.get(athlete.id) ?? [],
+      })));
     } catch (err) {
       setError(requestErrorMessage(err));
     } finally {
       timeout.clear();
       setLoading(false);
     }
-  }, [athletes, weekStart]);
+  }, [athletes, weekEnd, weekStart]);
 
   useEffect(() => { void load(); }, [load]);
 
-  return { plansByAthlete, loading, error };
+  return { rows, loading, error };
 }
 
-function PlansTable({
-  rows,
-}: {
-  rows: Array<{ athlete: AthleteRosterRow; planRow: PlanRow | null }>;
-}) {
-  const cols = '40px minmax(220px,1.4fr) 110px 130px 130px 130px 90px';
+function PlansTable({ rows }: { rows: WeekPlanningRow[] }) {
+  const cols = '40px minmax(220px,1.4fr) 110px 130px 130px 130px 120px 90px';
 
   return (
-    <div className="min-w-[900px]">
+    <div className="min-w-[1040px]">
       <div
         className="grid items-center px-5 h-10 text-[10px] uppercase tracking-[0.12em] text-slate-400 font-medium"
         style={{ gridTemplateColumns: cols, borderBottom: `1px solid ${TOKENS.HAIRLINE}`, background: TOKENS.PANEL_BG }}
@@ -161,9 +155,10 @@ function PlansTable({
         <div />
         <div>Athlete</div>
         <div>Status</div>
-        <div>Plan</div>
-        <div>Targets</div>
-        <div>Macro avg</div>
+        <div>Nutrition</div>
+        <div>Calories avg</div>
+        <div>Sessions</div>
+        <div>Load</div>
         <div className="text-right">Action</div>
       </div>
 
@@ -183,37 +178,41 @@ function PlansTable({
             <div className="mt-0.5 text-[11px] text-slate-500 truncate">{row.athlete.sport}</div>
           </div>
           <StatusDot status={row.athlete.status} />
-          <PlanState defined={Boolean(row.planRow)} />
+          <PlanState complete={row.targets.length === 7} value={`${row.targets.length}/7`} />
           <div className="font-mono tabular-nums text-[12px] text-slate-700">
-            {row.planRow ? `${row.planRow.targets.length}/4` : '0/4'}
+            {row.targets.length ? `${averageCalories(row.targets)} kcal` : '—'}
           </div>
-          <div className="font-mono tabular-nums text-[12px] text-slate-700">
-            {row.planRow ? `${averageCalories(row.planRow.targets)} kcal` : '—'}
-          </div>
-          <div className="text-right text-[11px] uppercase tracking-[0.1em] font-medium text-slate-500">
-            Open →
-          </div>
+          <div className="font-mono tabular-nums text-[12px] text-slate-700">{row.sessions.length}</div>
+          <div className="font-mono tabular-nums text-[12px] text-slate-700">{trainingLoad(row.sessions)}</div>
+          <div className="text-right text-[11px] uppercase tracking-[0.1em] font-medium text-slate-500">Open →</div>
         </Link>
       ))}
     </div>
   );
 }
 
-function PlanState({ defined }: { defined: boolean }) {
-  const color = defined ? TOKENS.TEAL : TOKENS.AMBER;
+function PlanState({ complete, value }: { complete: boolean; value: string }) {
+  const color = complete ? TOKENS.TEAL : TOKENS.AMBER;
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-      <span className="text-[12px]" style={{ color }}>{defined ? 'Defined' : 'Missing'}</span>
+      <span className="text-[12px]" style={{ color }}>{value}</span>
     </span>
   );
 }
 
-function averageCalories(targets: DayTarget[]) {
-  if (targets.length === 0) return 0;
+function groupByAthlete<T extends { athlete_id: string }>(rows: T[]) {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    map.set(row.athlete_id, [...(map.get(row.athlete_id) ?? []), row]);
+  }
+  return map;
+}
+
+function averageCalories(targets: DailyNutritionTarget[]) {
   return Math.round(targets.reduce((sum, target) => sum + target.calories, 0) / targets.length);
 }
 
-function totalTargets(rows: Array<{ planRow: PlanRow | null }>) {
-  return rows.reduce((sum, row) => sum + (row.planRow?.targets.length ?? 0), 0);
+function trainingLoad(sessions: TrainingSession[]) {
+  return sessions.reduce((sum, session) => sum + (session.internal_load ?? ((session.planned_duration_min ?? 0) * (session.planned_intensity ?? 0))), 0);
 }

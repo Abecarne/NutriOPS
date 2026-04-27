@@ -17,18 +17,25 @@ import {
   type DashboardAlert,
 } from '@/components/dashboard/kit';
 import { useAthletes } from '@/hooks/useAthletes';
+import { computeAthleteAlerts } from '@/lib/alerts';
 import { createRequestTimeout, requestErrorMessage } from '@/lib/requestTimeout';
 import { supabase } from '@/lib/supabase';
-import { isoDate, isoWeekStart, relativeFromNow } from '@/lib/utils';
-import type { AthleteRosterRow, AthleteStatus, Checkin, NutritionPlan } from '@/types/database';
+import { isoDate, relativeFromNow } from '@/lib/utils';
+import type { AthleteRosterRow, AthleteStatus, Checkin, DailyNutritionTarget, TrainingSession } from '@/types/database';
 
 type Filter = 'all' | AthleteStatus;
+
+interface DashboardMetrics {
+  checkinsByAthlete: Map<string, Checkin[]>;
+  sessionsByAthlete: Map<string, TrainingSession[]>;
+  targetsByAthlete: Map<string, DailyNutritionTarget>;
+  alerts: DashboardAlert[];
+}
 
 export function DashboardPage() {
   const { athletes, loading, error, refresh } = useAthletes();
   const {
-    checkinsByAthlete,
-    plannedAthleteIds,
+    metrics,
     loading: metricsLoading,
     error: metricsError,
   } = useDashboardMetrics(athletes);
@@ -50,15 +57,16 @@ export function DashboardPage() {
 
   const today = isoDate();
   const checkedInToday = athletes.filter(a => a.last_checkin?.checkin_date === today).length;
-  const alerts = useMemo(
-    () => buildAlerts(athletes).filter(alert => !dismissedAlerts.includes(alert.id)),
-    [athletes, dismissedAlerts],
-  );
+  const todaysSessions = Array.from(metrics.sessionsByAthlete.values()).flat().length;
+  const missingTargets = athletes.filter(a => !metrics.targetsByAthlete.has(a.id)).length;
+  const visibleAlerts = metrics.alerts.filter(alert => !dismissedAlerts.includes(alert.id)).slice(0, 6);
+  const criticalCount = metrics.alerts.filter(alert => alert.severity === 'critical').length;
+  const warningCount = metrics.alerts.filter(alert => alert.severity === 'warning').length;
 
   return (
     <div className="flex flex-col gap-8">
       <section>
-        <SectionLabel index="01" title="Today at a glance" />
+        <SectionLabel index="01" title="Coach today" />
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-px mt-4 rounded-md overflow-hidden" style={{ background: TOKENS.HAIRLINE }}>
           <KPICard
             label="Active athletes"
@@ -69,30 +77,64 @@ export function DashboardPage() {
           <KPICard
             label="Check-ins today"
             value={`${checkedInToday}/${athletes.length}`}
-            subline="Daily window closes 23:59"
+            subline="Daily readiness received"
             progress={athletes.length === 0 ? 0 : checkedInToday / athletes.length}
           />
           <KPICard
-            label="Off-season"
-            value={countByStatus.offseason}
-            subline="Athletes outside active load"
-            badge="status"
+            label="Sessions today"
+            value={todaysSessions}
+            subline="Planned or reported"
+            badge="training"
           />
           <KPICard
             label="Needs attention"
-            value={alerts.length}
-            subline={alerts.length === 0 ? 'No current flags' : 'Open coaching flags'}
-            badge="live"
+            value={visibleAlerts.length}
+            subline={
+              criticalCount > 0
+                ? `${criticalCount} critical · ${warningCount} warning`
+                : warningCount > 0
+                  ? `${warningCount} warning${warningCount > 1 ? 's' : ''}`
+                  : 'All clear today'
+            }
+            delta={{
+              value: String(missingTargets),
+              tone: missingTargets ? 'neg' : 'mute',
+              text: 'nutrition missing',
+            }}
           />
         </div>
       </section>
 
       <section>
-        <div className="flex items-baseline justify-between">
-          <SectionLabel index="02" title="Needs attention" count={alerts.length} />
-          {alerts.length > 0 && (
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="flex items-baseline gap-3">
+            <SectionLabel index="02" title="Needs attention" count={visibleAlerts.length} />
+            {(criticalCount > 0 || warningCount > 0) && (
+              <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums">
+                {criticalCount > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded"
+                    style={{ background: TOKENS.CRITICAL_BG, color: TOKENS.CRITICAL }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: TOKENS.CRITICAL }} />
+                    {criticalCount} critical
+                  </span>
+                )}
+                {warningCount > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded"
+                    style={{ background: TOKENS.WARNING_BG, color: TOKENS.AMBER }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: TOKENS.AMBER }} />
+                    {warningCount} warning
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          {visibleAlerts.length > 0 && (
             <button
-              onClick={() => setDismissedAlerts(prev => [...prev, ...alerts.map(a => a.id)])}
+              onClick={() => setDismissedAlerts(prev => [...prev, ...visibleAlerts.map(a => a.id)])}
               className="text-[11px] text-slate-500 hover:text-slate-900 tracking-wide uppercase"
             >
               Clear all
@@ -100,16 +142,16 @@ export function DashboardPage() {
           )}
         </div>
 
-        {alerts.length === 0 ? (
+        {visibleAlerts.length === 0 ? (
           <div
             className="mt-4 rounded-md bg-white border border-dashed text-center py-10 text-sm text-slate-400"
             style={{ borderColor: TOKENS.HAIRLINE }}
           >
-            All clear. Nothing flagged this morning.
+            Nothing flagged from today’s readiness, nutrition and training data.
           </div>
         ) : (
-          <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
-            {alerts.map(alert => (
+          <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+            {visibleAlerts.map(alert => (
               <AlertCard
                 key={alert.id}
                 alert={alert}
@@ -123,7 +165,7 @@ export function DashboardPage() {
 
       <section>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-baseline lg:justify-between">
-          <SectionLabel index="03" title="Roster" count={athletes.length} />
+          <SectionLabel index="03" title="Roster monitoring" count={athletes.length} />
           <div className="flex flex-wrap items-center gap-1 text-[11px]">
             <FilterTab current={filter} value="all" onSelect={setFilter} label={`All (${countByStatus.all})`} />
             <FilterTab current={filter} value="active" onSelect={setFilter} label={`Active (${countByStatus.active})`} />
@@ -146,16 +188,12 @@ export function DashboardPage() {
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center text-slate-500 text-sm">
               {athletes.length === 0
-                ? "No athletes yet. Add the first athlete to start."
-                : "No athlete matches this filter."}
+                ? 'No athletes yet. Add the first athlete to start.'
+                : 'No athlete matches this filter.'}
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <RosterTable
-                athletes={filtered}
-                checkinsByAthlete={checkinsByAthlete}
-                plannedAthleteIds={plannedAthleteIds}
-              />
+              <RosterTable athletes={filtered} metrics={metrics} />
             </div>
           )}
         </div>
@@ -171,16 +209,19 @@ export function DashboardPage() {
 }
 
 function useDashboardMetrics(athletes: AthleteRosterRow[]) {
-  const [checkinsByAthlete, setCheckinsByAthlete] = useState<Map<string, Checkin[]>>(new Map());
-  const [plannedAthleteIds, setPlannedAthleteIds] = useState<Set<string>>(new Set());
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    checkinsByAthlete: new Map(),
+    sessionsByAthlete: new Map(),
+    targetsByAthlete: new Map(),
+    alerts: [],
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const weekStart = useMemo(() => isoWeekStart(), []);
+  const today = useMemo(() => isoDate(), []);
 
   const load = useCallback(async () => {
     if (athletes.length === 0) {
-      setCheckinsByAthlete(new Map());
-      setPlannedAthleteIds(new Set());
+      setMetrics({ checkinsByAthlete: new Map(), sessionsByAthlete: new Map(), targetsByAthlete: new Map(), alerts: [] });
       setLoading(false);
       return;
     }
@@ -195,36 +236,81 @@ function useDashboardMetrics(athletes: AthleteRosterRow[]) {
         .select('*')
         .in('athlete_id', athleteIds)
         .order('checkin_date', { ascending: false })
+        .limit(athleteIds.length * 14)
         .abortSignal(timeout.signal);
       if (checkinsError) throw checkinsError;
 
-      const { data: plans, error: plansError } = await supabase
-        .from('nutrition_plans')
-        .select('id, athlete_id, week_start, name, created_at')
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('training_sessions')
+        .select('*')
         .in('athlete_id', athleteIds)
-        .eq('week_start', weekStart)
+        .eq('session_date', today)
+        .order('created_at', { ascending: true })
         .abortSignal(timeout.signal);
-      if (plansError) throw plansError;
+      if (sessionsError) throw sessionsError;
 
-      const nextCheckins = new Map<string, Checkin[]>();
+      const { data: targets, error: targetsError } = await supabase
+        .from('daily_nutrition_targets')
+        .select('*')
+        .in('athlete_id', athleteIds)
+        .eq('target_date', today)
+        .abortSignal(timeout.signal);
+      if (targetsError) throw targetsError;
+
+      const checkinsByAthlete = new Map<string, Checkin[]>();
       for (const row of (checkins ?? []) as Checkin[]) {
-        const rows = nextCheckins.get(row.athlete_id) ?? [];
-        if (rows.length < 4) nextCheckins.set(row.athlete_id, [...rows, row]);
+        const rows = checkinsByAthlete.get(row.athlete_id) ?? [];
+        if (rows.length < 14) checkinsByAthlete.set(row.athlete_id, [...rows, row]);
       }
 
-      setCheckinsByAthlete(nextCheckins);
-      setPlannedAthleteIds(new Set(((plans ?? []) as NutritionPlan[]).map(plan => plan.athlete_id)));
+      const sessionsByAthlete = new Map<string, TrainingSession[]>();
+      for (const row of (sessions ?? []) as TrainingSession[]) {
+        sessionsByAthlete.set(row.athlete_id, [...(sessionsByAthlete.get(row.athlete_id) ?? []), row]);
+      }
+
+      const targetsByAthlete = new Map<string, DailyNutritionTarget>();
+      for (const row of (targets ?? []) as DailyNutritionTarget[]) {
+        targetsByAthlete.set(row.athlete_id, row);
+      }
+
+      const severityRank: Record<'critical' | 'warning' | 'info', number> = {
+        critical: 0, warning: 1, info: 2,
+      };
+      const alerts = athletes
+        .flatMap(athlete => computeAthleteAlerts({
+          athlete,
+          checkins: checkinsByAthlete.get(athlete.id) ?? [],
+          sessions: sessionsByAthlete.get(athlete.id) ?? [],
+          targets: targetsByAthlete.get(athlete.id) ? [targetsByAthlete.get(athlete.id)!] : [],
+          today,
+        }))
+        .map(alert => ({
+          id: alert.id,
+          type: alert.category, // already 'recovery' | 'nutrition' | 'training' | 'adherence' | 'weight'
+          severity: alert.severity,
+          athleteId: alert.athlete_id,
+          athleteName: alert.athlete_name ?? 'Athlete',
+          sport: athletes.find(athlete => athlete.id === alert.athlete_id)?.sport ?? '',
+          title: alert.title,
+          description: alert.description,
+          detail: `${alert.title} — ${alert.description}`,
+          initials: initialsOf(alert.athlete_name ?? 'Athlete'),
+        }) satisfies DashboardAlert)
+        .sort((a, b) => severityRank[a.severity ?? 'info'] - severityRank[b.severity ?? 'info'])
+        .slice(0, 12);
+
+      setMetrics({ checkinsByAthlete, sessionsByAthlete, targetsByAthlete, alerts });
     } catch (err) {
       setError(requestErrorMessage(err));
     } finally {
       timeout.clear();
       setLoading(false);
     }
-  }, [athletes, weekStart]);
+  }, [athletes, today]);
 
   useEffect(() => { void load(); }, [load]);
 
-  return { checkinsByAthlete, plannedAthleteIds, loading, error };
+  return { metrics, loading, error };
 }
 
 function FilterTab({
@@ -247,17 +333,15 @@ function FilterTab({
 
 function RosterTable({
   athletes,
-  checkinsByAthlete,
-  plannedAthleteIds,
+  metrics,
 }: {
   athletes: AthleteRosterRow[];
-  checkinsByAthlete: Map<string, Checkin[]>;
-  plannedAthleteIds: Set<string>;
+  metrics: DashboardMetrics;
 }) {
-  const cols = '40px minmax(220px,1.35fr) 110px 130px 130px 110px 110px 130px 90px';
+  const cols = '40px minmax(220px,1.35fr) 110px 112px 96px 96px 96px 150px 150px 90px';
 
   return (
-    <div className="font-sans min-w-[1040px]">
+    <div className="font-sans min-w-[1220px]">
       <div
         className="grid items-center px-5 h-10 text-[10px] uppercase tracking-[0.12em] text-slate-400 font-medium"
         style={{ gridTemplateColumns: cols, borderBottom: `1px solid ${TOKENS.HAIRLINE}`, background: TOKENS.PANEL_BG }}
@@ -265,11 +349,12 @@ function RosterTable({
         <div />
         <div>Athlete</div>
         <div>Status</div>
-        <div>Last check-in</div>
-        <div className="text-right pr-4">Weight (kg)</div>
-        <div>Energy · 4w</div>
-        <div>Sleep · 4w</div>
-        <div>Plan / week</div>
+        <div>Check-in</div>
+        <div>Weight</div>
+        <div>Energy</div>
+        <div>Soreness</div>
+        <div>Training today</div>
+        <div>Nutrition today</div>
         <div className="text-right">Action</div>
       </div>
 
@@ -277,8 +362,9 @@ function RosterTable({
         <RosterRow
           key={athlete.id}
           athlete={athlete}
-          checkins={checkinsByAthlete.get(athlete.id) ?? []}
-          planDefined={plannedAthleteIds.has(athlete.id)}
+          checkins={metrics.checkinsByAthlete.get(athlete.id) ?? []}
+          sessions={metrics.sessionsByAthlete.get(athlete.id) ?? []}
+          target={metrics.targetsByAthlete.get(athlete.id) ?? null}
           cols={cols}
           last={index === athletes.length - 1}
         />
@@ -290,27 +376,33 @@ function RosterTable({
 function RosterRow({
   athlete,
   checkins,
-  planDefined,
+  sessions,
+  target,
   cols,
   last,
 }: {
   athlete: AthleteRosterRow;
   checkins: Checkin[];
-  planDefined: boolean;
+  sessions: TrainingSession[];
+  target: DailyNutritionTarget | null;
   cols: string;
   last: boolean;
 }) {
   const checkinDays = daysSince(athlete.last_checkin?.checkin_date);
   const lateCheckin = checkinDays > 0;
-  const weight = athlete.last_checkin?.weight_kg;
-  const orderedCheckins = [...checkins].sort((a, b) => a.checkin_date.localeCompare(b.checkin_date));
+  const latest = checkins[0] ?? null;
+  const previous = checkins[1] ?? null;
+  const weightDelta = latest && previous ? Number(latest.weight_kg) - Number(previous.weight_kg) : null;
+  const orderedCheckins = [...checkins].sort((a, b) => a.checkin_date.localeCompare(b.checkin_date)).slice(-7);
   const energyTrend = orderedCheckins.map(checkin => checkin.energy_level);
-  const sleepTrend = orderedCheckins.map(checkin => checkin.sleep_quality);
+  const sorenessTrend = orderedCheckins.map(checkin => checkin.soreness_level ?? 0).filter(Boolean);
+  const mainSession = sessions[0];
+  const adherence = latest?.nutrition_adherence ?? null;
 
   return (
     <Link
       to={`/athletes/${athlete.id}`}
-      className="grid items-center px-5 h-[60px] text-[13px] hover:bg-[#FAFAF8] transition-colors"
+      className="grid items-center px-5 h-[64px] text-[13px] hover:bg-[#FAFAF8] transition-colors"
       style={{
         gridTemplateColumns: cols,
         borderBottom: last ? undefined : `1px solid ${TOKENS.HAIRLINE}`,
@@ -326,108 +418,105 @@ function RosterRow({
       <StatusDot status={athlete.status} />
 
       <div className="flex flex-col leading-tight">
-        <span
-          className="font-mono tabular-nums text-[12px]"
-          style={{ color: lateCheckin ? TOKENS.AMBER : '#0F172A' }}
-        >
+        <span className="font-mono tabular-nums text-[12px]" style={{ color: lateCheckin ? TOKENS.AMBER : '#0F172A' }}>
           {formatCheckinDelay(checkinDays)}
         </span>
-        {lateCheckin && (
-          <span className="text-[10px] uppercase tracking-[0.1em] mt-0.5" style={{ color: TOKENS.AMBER }}>
-            Overdue
-          </span>
-        )}
+        {lateCheckin && <span className="text-[10px] uppercase tracking-[0.1em] mt-0.5" style={{ color: TOKENS.AMBER }}>Overdue</span>}
       </div>
 
-      <div className="text-right pr-4 flex flex-col leading-tight items-end">
-        <span className="font-mono tabular-nums text-[14px] text-slate-900">
-          {typeof weight === 'number' ? Number(weight).toFixed(1) : '—'}
+      <div className="flex flex-col leading-tight">
+        <span className="font-mono tabular-nums text-[13px] text-slate-900">
+          {latest ? `${Number(latest.weight_kg).toFixed(1)} kg` : '—'}
         </span>
-        <span className="text-[11px] font-mono tabular-nums text-slate-400">
-          {relativeFromNow(athlete.last_checkin?.submitted_at)}
+        <WeightDelta delta={weightDelta} fallback={relativeFromNow(latest?.submitted_at)} />
+      </div>
+
+      <TrendCell data={energyTrend} color={TOKENS.TEAL} suffix="/5" />
+      <TrendCell data={sorenessTrend} color={TOKENS.AMBER} suffix="/5" />
+
+      <div className="flex flex-col leading-tight min-w-0">
+        <span className="text-[12px] text-slate-900 truncate">{mainSession?.title ?? 'No session'}</span>
+        <span className="text-[10px] text-slate-400 truncate">
+          {mainSession ? `${mainSession.status} · ${mainSession.planned_duration_min ?? '—'} min` : 'Training not planned'}
         </span>
       </div>
 
-      <div className="flex items-center gap-2">
-        <TrendCell data={energyTrend} color={TOKENS.TEAL} />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <TrendCell data={sleepTrend} color="#5B7CC9" />
-      </div>
-
-      <div className="flex items-center gap-1.5">
-        <span
-          className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: planDefined ? TOKENS.TEAL : TOKENS.AMBER }}
-        />
-        <span className="text-[12px]" style={{ color: planDefined ? TOKENS.TEAL : TOKENS.AMBER }}>
-          {planDefined ? 'Defined' : 'Missing'}
+      <div className="flex flex-col leading-tight">
+        <span className="font-mono tabular-nums text-[12px]" style={{ color: target ? TOKENS.TEAL : TOKENS.AMBER }}>
+          {target ? `${target.calories} kcal` : 'Missing'}
         </span>
+        <AdherenceBadge adherence={adherence} dayType={target?.day_type} />
       </div>
 
       <div className="text-right">
-        <span className="text-[11px] uppercase tracking-[0.1em] font-medium text-slate-500">
-          Open →
-        </span>
+        <span className="text-[11px] uppercase tracking-[0.1em] font-medium text-slate-500">Open →</span>
       </div>
     </Link>
   );
 }
 
-function TrendCell({ data, color }: { data: number[]; color: string }) {
+function WeightDelta({ delta, fallback }: { delta: number | null; fallback: string }) {
+  if (delta === null) {
+    return <span className="text-[10px] text-slate-400">{fallback}</span>;
+  }
+  if (Math.abs(delta) < 0.1) {
+    return <span className="text-[10px] font-mono tabular-nums text-slate-400">— stable</span>;
+  }
+  const tone = Math.abs(delta) >= 1.5 ? TOKENS.AMBER : TOKENS.SLATE;
+  return (
+    <span className="text-[10px] font-mono tabular-nums" style={{ color: tone }}>
+      {delta > 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(1)} kg
+    </span>
+  );
+}
+
+function AdherenceBadge({
+  adherence,
+  dayType,
+}: {
+  adherence: 'low' | 'medium' | 'high' | null;
+  dayType?: string;
+}) {
+  if (!adherence) {
+    return <span className="text-[10px] text-slate-400">{dayType ?? 'No target'}</span>;
+  }
+  const map = {
+    low:    { color: TOKENS.AMBER, label: 'Adh. faible' },
+    medium: { color: TOKENS.SLATE, label: 'Adh. moyenne' },
+    high:   { color: TOKENS.TEAL,  label: 'Adh. bonne' },
+  } as const;
+  const { color, label } = map[adherence];
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px]" style={{ color }}>
+      <span className="w-1 h-1 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
+  );
+}
+
+function TrendCell({ data, color, suffix }: { data: number[]; color: string; suffix: string }) {
   if (data.length === 0) {
     return (
-      <>
+      <div className="flex items-center gap-2">
         <span className="h-[2px] w-16 rounded-full" style={{ background: TOKENS.HAIRLINE }} />
         <span className="font-mono tabular-nums text-[11px] text-slate-400">—</span>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="flex items-center gap-2">
       <Sparkline data={data} color={color} />
       <span className="font-mono tabular-nums text-[11px] text-slate-500">
-        {data[data.length - 1]}/5
+        {data[data.length - 1]}{suffix}
       </span>
-    </>
+    </div>
   );
-}
-
-function buildAlerts(athletes: AthleteRosterRow[]): DashboardAlert[] {
-  return athletes.flatMap(athlete => {
-    const alerts: DashboardAlert[] = [];
-    const checkinDays = daysSince(athlete.last_checkin?.checkin_date);
-    if (checkinDays > 0) {
-      alerts.push({
-        id: `${athlete.id}-missed`,
-        type: 'missed',
-        athleteId: athlete.id,
-        athleteName: athlete.full_name,
-        sport: athlete.sport,
-        detail: Number.isFinite(checkinDays) ? `No check-in for ${checkinDays} days` : 'No check-in yet',
-        initials: initialsOf(athlete.full_name),
-      });
-    }
-    if (athlete.status === 'injured') {
-      alerts.push({
-        id: `${athlete.id}-energy`,
-        type: 'energy',
-        athleteId: athlete.id,
-        athleteName: athlete.full_name,
-        sport: athlete.sport,
-        detail: 'Injury status requires plan review',
-        initials: initialsOf(athlete.full_name),
-      });
-    }
-    return alerts;
-  }).slice(0, 3);
 }
 
 function daysSince(value: string | null | undefined): number {
   if (!value) return Number.POSITIVE_INFINITY;
-  return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000));
+  return Math.max(0, Math.floor((Date.now() - new Date(`${value}T00:00:00`).getTime()) / 86_400_000));
 }
 
 function formatCheckinDelay(days: number): string {

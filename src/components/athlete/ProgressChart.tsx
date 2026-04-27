@@ -9,26 +9,38 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { Checkin } from '@/types/database';
+import type { Checkin, DailyNutritionTarget, TrainingSession } from '@/types/database';
 import { formatDateShort } from '@/lib/utils';
 
 interface Props {
   checkins: Checkin[];
+  sessions?: TrainingSession[];
+  targets?: DailyNutritionTarget[];
   primaryColor: string;
 }
 
-export function ProgressChart({ checkins, primaryColor }: Props) {
+export function ProgressChart({ checkins, sessions = [], targets = [], primaryColor }: Props) {
   const data = useMemo(
-    () =>
-      [...checkins]
+    () => {
+      const loadByDate = new Map<string, number>();
+      for (const session of sessions) {
+        const load = session.internal_load ?? ((session.planned_duration_min ?? 0) * (session.planned_intensity ?? 0));
+        loadByDate.set(session.session_date, (loadByDate.get(session.session_date) ?? 0) + load);
+      }
+      const caloriesByDate = new Map(targets.map(target => [target.target_date, target.calories]));
+      return [...checkins]
         .sort((a, b) => a.checkin_date.localeCompare(b.checkin_date))
         .map(c => ({
-          week: formatDateShort(c.checkin_date),
+          date: formatDateShort(c.checkin_date),
           poids: c.weight_kg,
           energie: c.energy_level,
           sommeil: c.sleep_quality,
-        })),
-    [checkins],
+          soreness: c.soreness_level,
+          charge: loadByDate.get(c.checkin_date) ?? null,
+          calories: caloriesByDate.get(c.checkin_date) ?? null,
+        }));
+    },
+    [checkins, sessions, targets],
   );
 
   if (data.length === 0) {
@@ -44,7 +56,7 @@ export function ProgressChart({ checkins, primaryColor }: Props) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
-          <XAxis dataKey="week" stroke="#64748b" tick={{ fontSize: 12 }} />
+          <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 12 }} />
           <YAxis
             yAxisId="left"
             stroke="#64748b"
@@ -61,6 +73,12 @@ export function ProgressChart({ checkins, primaryColor }: Props) {
             domain={[0, 5]}
             ticks={[1, 2, 3, 4, 5]}
             width={28}
+          />
+          <YAxis
+            yAxisId="load"
+            orientation="right"
+            hide
+            domain={['auto', 'auto']}
           />
           <Tooltip
             contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
@@ -96,6 +114,38 @@ export function ProgressChart({ checkins, primaryColor }: Props) {
             strokeWidth={1.5}
             strokeDasharray="4 4"
             dot={{ r: 2 }}
+          />
+          <Line
+            yAxisId="right"
+            type="monotone"
+            dataKey="soreness"
+            name="Soreness (1-5)"
+            stroke="#C2772A"
+            strokeWidth={1.5}
+            strokeDasharray="2 4"
+            dot={{ r: 2 }}
+            connectNulls
+          />
+          <Line
+            yAxisId="load"
+            type="monotone"
+            dataKey="charge"
+            name="Charge interne"
+            stroke="#64748b"
+            strokeWidth={1.5}
+            dot={{ r: 2 }}
+            connectNulls
+          />
+          <Line
+            yAxisId="load"
+            type="monotone"
+            dataKey="calories"
+            name="Calories cible"
+            stroke="#16a34a"
+            strokeWidth={1.5}
+            strokeDasharray="6 4"
+            dot={{ r: 2 }}
+            connectNulls
           />
         </LineChart>
       </ResponsiveContainer>

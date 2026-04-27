@@ -16,8 +16,9 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useAuth } from '@/context/AuthContext';
 import { useAthletes } from '@/hooks/useAthletes';
 import { supabase } from '@/lib/supabase';
-import { formatWeekRange, isoDate, isoWeekStart, relativeFromNow } from '@/lib/utils';
-import type { AthleteRosterRow, Checkin, CoachNote, DayTarget, DayType } from '@/types/database';
+import { formatWeekRange, isoDate, isoWeekEnd, isoWeekStart, relativeFromNow } from '@/lib/utils';
+import { computeAthleteAlerts } from '@/lib/alerts';
+import type { AthleteRosterRow, Checkin, CoachNote, DailyNutritionTarget, NutritionMealItem, TrainingSession } from '@/types/database';
 
 export function ReportsPage() {
   const { coach } = useAuth();
@@ -25,6 +26,7 @@ export function ReportsPage() {
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const weekStart = isoWeekStart();
+  const weekEnd = isoWeekEnd(weekStart);
   const today = isoDate();
 
   const readyCount = athletes.filter(a => a.last_checkin?.checkin_date === today).length;
@@ -37,14 +39,23 @@ export function ReportsPage() {
     setExportingId(athlete.id);
     setExportError(null);
     try {
-      const latest = await loadReportData(athlete.id, weekStart);
+      const latest = await loadReportData(athlete.id, weekStart, weekEnd);
       const reportData: ReportData = {
         coach,
         athlete,
         weekStart,
-        targets: latest.targets,
+        dailyTargets: latest.dailyTargets,
+        mealItems: latest.mealItems,
+        trainingSessions: latest.trainingSessions,
         checkins: latest.checkins,
         coachNote: latest.coachNote,
+        alerts: computeAthleteAlerts({
+          athlete,
+          checkins: latest.checkins,
+          sessions: latest.trainingSessions,
+          targets: latest.dailyTargets,
+          today,
+        }),
       };
       const blob = await pdf(<AthleteReportPDF data={reportData} />).toBlob();
       const url = URL.createObjectURL(blob);
@@ -70,7 +81,7 @@ export function ReportsPage() {
           <KPICard label="Report period" value={athletes.length} subline={formatWeekRange(weekStart)} badge="athletes" />
           <KPICard label="Checked in today" value={readyCount} subline="Daily check-in submitted" progress={athletes.length ? readyCount / athletes.length : 0} />
           <KPICard label="Pending today" value={athletes.length - readyCount} subline="No daily check-in yet" delta={{ value: String(athletes.length - readyCount), tone: athletes.length - readyCount ? 'neg' : 'mute', text: 'open' }} />
-          <KPICard label="PDF format" value="3" subline="Cover · nutrition · progression" badge="pages" />
+          <KPICard label="PDF format" value="4" subline="Cover · nutrition · training · progression" badge="pages" />
         </div>
       </section>
 
@@ -150,7 +161,7 @@ function ReportsTable({
             <ContentDot active />
             <ContentDot active />
             <ContentDot active={Boolean(athlete.last_checkin)} />
-            <span className="ml-1 text-[11px] text-slate-500">profile · plan · progress</span>
+            <span className="ml-1 text-[11px] text-slate-500">profile · nutrition · training · progress</span>
           </div>
           <Link
             to={`/athletes/${athlete.id}`}
@@ -178,30 +189,42 @@ function ContentDot({ active }: { active: boolean }) {
   );
 }
 
-async function loadReportData(athleteId: string, weekStart: string): Promise<{
-  targets: Partial<Record<DayType, DayTarget>>;
+async function loadReportData(athleteId: string, weekStart: string, weekEnd: string): Promise<{
+  dailyTargets: DailyNutritionTarget[];
+  mealItems: NutritionMealItem[];
+  trainingSessions: TrainingSession[];
   checkins: Checkin[];
   coachNote: CoachNote | null;
 }> {
-  const { data: plan, error: planError } = await supabase
-    .from('nutrition_plans')
-    .select('id')
+  const { data: targetRows, error: targetError } = await supabase
+    .from('daily_nutrition_targets')
+    .select('*')
     .eq('athlete_id', athleteId)
-    .eq('week_start', weekStart)
-    .maybeSingle();
-  if (planError) throw planError;
+    .gte('target_date', weekStart)
+    .lte('target_date', weekEnd)
+    .order('target_date', { ascending: true });
+  if (targetError) throw targetError;
+  const targetRowsTyped = (targetRows ?? []) as DailyNutritionTarget[];
 
-  const targets: Partial<Record<DayType, DayTarget>> = {};
-  if (plan) {
-    const { data: targetRows, error: targetError } = await supabase
-      .from('day_targets')
+  const mealItems: NutritionMealItem[] = [];
+  if (targetRowsTyped.length > 0) {
+    const { data: mealRows, error: mealError } = await supabase
+      .from('nutrition_meal_items')
       .select('*')
-      .eq('plan_id', plan.id);
-    if (targetError) throw targetError;
-    for (const row of (targetRows ?? []) as DayTarget[]) {
-      targets[row.day_type] = row;
-    }
+      .in('target_id', targetRowsTyped.map(target => target.id))
+      .order('position', { ascending: true });
+    if (mealError) throw mealError;
+    mealItems.push(...((mealRows ?? []) as NutritionMealItem[]));
   }
+
+  const { data: sessionRows, error: sessionError } = await supabase
+    .from('training_sessions')
+    .select('*')
+    .eq('athlete_id', athleteId)
+    .gte('session_date', weekStart)
+    .lte('session_date', weekEnd)
+    .order('session_date', { ascending: true });
+  if (sessionError) throw sessionError;
 
   const { data: checkinRows, error: checkinError } = await supabase
     .from('checkins')
@@ -220,7 +243,9 @@ async function loadReportData(athleteId: string, weekStart: string): Promise<{
   if (noteError) throw noteError;
 
   return {
-    targets,
+    dailyTargets: targetRowsTyped,
+    mealItems,
+    trainingSessions: (sessionRows ?? []) as TrainingSession[],
     checkins: (checkinRows ?? []) as Checkin[],
     coachNote: (noteRow as CoachNote | null) ?? null,
   };

@@ -1,6 +1,7 @@
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
-import { DAY_TYPES, DAY_TYPE_LABELS } from '@/types/database';
-import type { Athlete, Checkin, Coach, CoachNote, DayTarget, DayType } from '@/types/database';
+import { DAY_TYPE_LABELS, MEAL_SLOT_LABELS, NUTRITION_ADHERENCE_LABELS, TRAINING_SESSION_STATUS_LABELS, TRAINING_SESSION_TYPE_LABELS } from '@/types/database';
+import type { Athlete, Checkin, Coach, CoachNote, DailyNutritionTarget, NutritionMealItem, TrainingSession } from '@/types/database';
+import type { ComputedAthleteAlert } from '@/lib/alerts';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -8,9 +9,12 @@ export interface ReportData {
   coach: Coach;
   athlete: Athlete;
   weekStart: string;
-  targets: Partial<Record<DayType, DayTarget>>;
+  dailyTargets: DailyNutritionTarget[];
+  mealItems: NutritionMealItem[];
+  trainingSessions: TrainingSession[];
   checkins: Checkin[];
   coachNote: CoachNote | null;
+  alerts: ComputedAthleteAlert[];
 }
 
 const styles = StyleSheet.create({
@@ -115,9 +119,8 @@ function stars(n: number) {
 }
 
 export function AthleteReportPDF({ data }: { data: ReportData }) {
-  const { coach, athlete, weekStart, targets, checkins, coachNote } = data;
+  const { coach, athlete, weekStart, dailyTargets, mealItems, trainingSessions, checkins, coachNote, alerts } = data;
   const color = coach.primary_color || '#1D9E75';
-  const widths = { label: 90, col: (520 - 90) / 4 };
 
   return (
     <Document>
@@ -166,9 +169,24 @@ export function AthleteReportPDF({ data }: { data: ReportData }) {
             </Text>
           </View>
         </View>
+
+        <Text style={styles.sectionTitle}>Alertes principales</Text>
+        <View style={styles.table}>
+          {alerts.length === 0 ? (
+            <View style={styles.rowLast}>
+              <Text style={[styles.checkinBodyCell, { flex: 1, borderLeftWidth: 0 }]}>Aucune alerte calculée sur la période.</Text>
+            </View>
+          ) : alerts.slice(0, 6).map((alert, index) => (
+            <View key={alert.id} style={index === Math.min(alerts.length, 6) - 1 ? styles.rowLast : styles.row}>
+              <Text style={[styles.checkinBodyCell, { width: 90, borderLeftWidth: 0 }]}>{alert.severity}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 120 }]}>{alert.title}</Text>
+              <Text style={[styles.checkinBodyCell, { flex: 1 }]}>{alert.description}</Text>
+            </View>
+          ))}
+        </View>
       </Page>
 
-      {/* PAGE 2 — nutrition plan */}
+      {/* PAGE 2 — daily nutrition */}
       <Page size="A4" style={styles.page}>
         <View style={[styles.headerRow, { borderBottomColor: color }]}>
           <View style={styles.headerLeft}>
@@ -180,66 +198,70 @@ export function AthleteReportPDF({ data }: { data: ReportData }) {
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Plan nutritionnel</Text>
+        <Text style={styles.sectionTitle}>Nutrition quotidienne</Text>
 
         <View style={styles.table}>
-          <View style={[styles.row, { backgroundColor: color }]}>
-            <Text style={[styles.headerCell, { width: widths.label, textAlign: 'left' }]}>
-              {' '}
-            </Text>
-            {DAY_TYPES.map(dt => (
-              <Text key={dt} style={[styles.headerCell, { flex: 0, width: widths.col }]}>
-                {DAY_TYPE_LABELS[dt]}
-              </Text>
-            ))}
+          <View style={[styles.checkinHeaderRow, { backgroundColor: color }]}>
+            <Text style={[styles.headerCell, { width: 70 }]}>Date</Text>
+            <Text style={[styles.headerCell, { width: 90 }]}>Type</Text>
+            <Text style={[styles.headerCell, { width: 70 }]}>Kcal</Text>
+            <Text style={[styles.headerCell, { width: 70 }]}>Prot.</Text>
+            <Text style={[styles.headerCell, { width: 70 }]}>Gluc.</Text>
+            <Text style={[styles.headerCell, { width: 70 }]}>Lip.</Text>
+            <Text style={[styles.headerCell, { flex: 1 }]}>Notes</Text>
           </View>
-          <MacroRow
-            label="Calories"
-            unit="kcal"
-            widths={widths}
-            values={DAY_TYPES.map(dt => targets[dt]?.calories ?? 0)}
-          />
-          <MacroRow
-            label="Protéines"
-            unit="g"
-            widths={widths}
-            values={DAY_TYPES.map(dt => targets[dt]?.protein_g ?? 0)}
-          />
-          <MacroRow
-            label="Glucides"
-            unit="g"
-            widths={widths}
-            values={DAY_TYPES.map(dt => targets[dt]?.carbs_g ?? 0)}
-          />
-          <MacroRow
-            label="Lipides"
-            unit="g"
-            widths={widths}
-            values={DAY_TYPES.map(dt => targets[dt]?.fat_g ?? 0)}
-            last
-          />
+          {dailyTargets.length === 0 ? (
+            <View style={styles.rowLast}>
+              <Text style={[styles.checkinBodyCell, { flex: 1, borderLeftWidth: 0 }]}>Aucune cible nutrition quotidienne définie.</Text>
+            </View>
+          ) : dailyTargets.map((target, index) => (
+            <View key={target.id} style={index === dailyTargets.length - 1 ? styles.rowLast : styles.row}>
+              <Text style={[styles.checkinBodyCell, { width: 70, borderLeftWidth: 0 }]}>{fmt(target.target_date)}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 90 }]}>{DAY_TYPE_LABELS[target.day_type]}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 70 }]}>{target.calories}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 70 }]}>{target.protein_g} g</Text>
+              <Text style={[styles.checkinBodyCell, { width: 70 }]}>{target.carbs_g} g</Text>
+              <Text style={[styles.checkinBodyCell, { width: 70 }]}>{target.fat_g} g</Text>
+              <Text style={[styles.checkinBodyCell, { flex: 1 }]}>{target.notes || '—'}</Text>
+            </View>
+          ))}
         </View>
 
-        {DAY_TYPES.some(dt => targets[dt]?.notes) && (
+        {mealItems.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Notes par type de journée</Text>
-            {DAY_TYPES.map(dt => {
-              const n = targets[dt]?.notes;
-              if (!n) return null;
-              return (
-                <View key={dt} style={styles.notesBox}>
-                  <Text style={styles.notesTitle}>{DAY_TYPE_LABELS[dt]}</Text>
-                  <Text style={styles.notesContent}>{n}</Text>
-                </View>
-              );
-            })}
+            <Text style={styles.sectionTitle}>Repas et collations</Text>
+            <View style={styles.table}>
+              <View style={[styles.checkinHeaderRow]}>
+                <Text style={[styles.checkinHeaderCell, { width: 70 }]}>Date</Text>
+                <Text style={[styles.checkinHeaderCell, { width: 85 }]}>Repas</Text>
+                <Text style={[styles.checkinHeaderCell, { flex: 1 }]}>Item</Text>
+                <Text style={[styles.checkinHeaderCell, { width: 55 }]}>Kcal</Text>
+                <Text style={[styles.checkinHeaderCell, { width: 45 }]}>P</Text>
+                <Text style={[styles.checkinHeaderCell, { width: 45 }]}>G</Text>
+                <Text style={[styles.checkinHeaderCell, { width: 45 }]}>L</Text>
+              </View>
+              {mealItems.slice(0, 18).map((item, index) => {
+                const target = dailyTargets.find(t => t.id === item.target_id);
+                return (
+                  <View key={item.id} style={index === Math.min(mealItems.length, 18) - 1 ? styles.rowLast : styles.row}>
+                    <Text style={[styles.checkinBodyCell, { width: 70, borderLeftWidth: 0 }]}>{fmt(target?.target_date)}</Text>
+                    <Text style={[styles.checkinBodyCell, { width: 85 }]}>{MEAL_SLOT_LABELS[item.meal_slot]}</Text>
+                    <Text style={[styles.checkinBodyCell, { flex: 1 }]}>{item.name} {item.quantity ? `· ${item.quantity}` : ''}</Text>
+                    <Text style={[styles.checkinBodyCell, { width: 55 }]}>{item.calories}</Text>
+                    <Text style={[styles.checkinBodyCell, { width: 45 }]}>{item.protein_g}</Text>
+                    <Text style={[styles.checkinBodyCell, { width: 45 }]}>{item.carbs_g}</Text>
+                    <Text style={[styles.checkinBodyCell, { width: 45 }]}>{item.fat_g}</Text>
+                  </View>
+                );
+              })}
+            </View>
           </>
         )}
 
         <Text style={styles.footer}>NutriOps · Rapport confidentiel</Text>
       </Page>
 
-      {/* PAGE 3 — progression */}
+      {/* PAGE 3 — training */}
       <Page size="A4" style={styles.page}>
         <View style={[styles.headerRow, { borderBottomColor: color }]}>
           <View style={styles.headerLeft}>
@@ -251,7 +273,50 @@ export function AthleteReportPDF({ data }: { data: ReportData }) {
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Progression — 12 derniers check-ins</Text>
+        <Text style={styles.sectionTitle}>Séances de la semaine</Text>
+        <View style={styles.table}>
+          <View style={[styles.checkinHeaderRow]}>
+            <Text style={[styles.checkinHeaderCell, { width: 70 }]}>Date</Text>
+            <Text style={[styles.checkinHeaderCell, { width: 120 }]}>Séance</Text>
+            <Text style={[styles.checkinHeaderCell, { width: 80 }]}>Type</Text>
+            <Text style={[styles.checkinHeaderCell, { width: 75 }]}>Statut</Text>
+            <Text style={[styles.checkinHeaderCell, { width: 55 }]}>Durée</Text>
+            <Text style={[styles.checkinHeaderCell, { width: 45 }]}>RPE</Text>
+            <Text style={[styles.checkinHeaderCell, { flex: 1 }]}>Notes</Text>
+          </View>
+          {trainingSessions.length === 0 ? (
+            <View style={styles.rowLast}>
+              <Text style={[styles.checkinBodyCell, { flex: 1, borderLeftWidth: 0 }]}>Aucune séance planifiée.</Text>
+            </View>
+          ) : trainingSessions.map((session, index) => (
+            <View key={session.id} style={index === trainingSessions.length - 1 ? styles.rowLast : styles.row}>
+              <Text style={[styles.checkinBodyCell, { width: 70, borderLeftWidth: 0 }]}>{fmt(session.session_date)}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 120 }]}>{session.title}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 80 }]}>{TRAINING_SESSION_TYPE_LABELS[session.session_type]}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 75 }]}>{TRAINING_SESSION_STATUS_LABELS[session.status]}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 55 }]}>{session.actual_duration_min ?? session.planned_duration_min ?? '—'}</Text>
+              <Text style={[styles.checkinBodyCell, { width: 45 }]}>{session.rpe ?? '—'}</Text>
+              <Text style={[styles.checkinBodyCell, { flex: 1 }]}>{session.athlete_notes || session.coach_notes || '—'}</Text>
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.footer}>NutriOps · Rapport confidentiel</Text>
+      </Page>
+
+      {/* PAGE 4 — progression */}
+      <Page size="A4" style={styles.page}>
+        <View style={[styles.headerRow, { borderBottomColor: color }]}>
+          <View style={styles.headerLeft}>
+            {coach.logo_url && <Image src={coach.logo_url} style={styles.logo} />}
+            <Text style={styles.clubName}>{coach.club_name || coach.full_name}</Text>
+          </View>
+          <Text style={styles.generatedAt}>
+            {athlete.full_name} · Semaine du {fmt(weekStart)}
+          </Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>Progression — check-ins quotidiens</Text>
 
         <View style={styles.table}>
           <View style={[styles.checkinHeaderRow]}>
@@ -259,6 +324,8 @@ export function AthleteReportPDF({ data }: { data: ReportData }) {
             <Text style={[styles.checkinHeaderCell, { width: 60 }]}>Poids</Text>
             <Text style={[styles.checkinHeaderCell, { width: 80 }]}>Énergie</Text>
             <Text style={[styles.checkinHeaderCell, { width: 80 }]}>Sommeil</Text>
+            <Text style={[styles.checkinHeaderCell, { width: 55 }]}>Soreness</Text>
+            <Text style={[styles.checkinHeaderCell, { width: 70 }]}>Nutrition</Text>
             <Text style={[styles.checkinHeaderCell, { flex: 1 }]}>Notes athlète</Text>
           </View>
           {checkins.length === 0 ? (
@@ -276,6 +343,10 @@ export function AthleteReportPDF({ data }: { data: ReportData }) {
                 <Text style={[styles.checkinBodyCell, { width: 60 }]}>{c.weight_kg} kg</Text>
                 <Text style={[styles.checkinBodyCell, { width: 80 }]}>{stars(c.energy_level)}</Text>
                 <Text style={[styles.checkinBodyCell, { width: 80 }]}>{stars(c.sleep_quality)}</Text>
+                <Text style={[styles.checkinBodyCell, { width: 55 }]}>{c.soreness_level ?? '—'}</Text>
+                <Text style={[styles.checkinBodyCell, { width: 70 }]}>
+                  {c.nutrition_adherence ? NUTRITION_ADHERENCE_LABELS[c.nutrition_adherence] : '—'}
+                </Text>
                 <Text style={[styles.checkinBodyCell, { flex: 1 }]}>{c.notes || '—'}</Text>
               </View>
             ))
@@ -292,30 +363,5 @@ export function AthleteReportPDF({ data }: { data: ReportData }) {
         <Text style={styles.footer}>NutriOps · Rapport confidentiel</Text>
       </Page>
     </Document>
-  );
-}
-
-function MacroRow({
-  label,
-  unit,
-  values,
-  widths,
-  last,
-}: {
-  label: string;
-  unit: string;
-  values: number[];
-  widths: { label: number; col: number };
-  last?: boolean;
-}) {
-  return (
-    <View style={last ? styles.rowLast : styles.row}>
-      <Text style={[styles.labelCell, { width: widths.label }]}>{label}</Text>
-      {values.map((v, i) => (
-        <Text key={i} style={[styles.cell, { flex: 0, width: widths.col }]}>
-          {v} {unit}
-        </Text>
-      ))}
-    </View>
   );
 }
