@@ -14,7 +14,7 @@ import {
   StatusDot,
   TOKENS,
   initialsOf,
-  type DashboardAlert,
+  type DashboardAlert as KitDashboardAlert,
 } from '@/components/dashboard/kit';
 import { useAthletes } from '@/hooks/useAthletes';
 import { computeAthleteAlerts } from '@/lib/alerts';
@@ -24,6 +24,8 @@ import { isoDate, relativeFromNow } from '@/lib/utils';
 import type { AthleteRosterRow, AthleteStatus, Checkin, DailyNutritionTarget, TrainingSession } from '@/types/database';
 
 type Filter = 'all' | AthleteStatus;
+type AlertSeverity = 'critical' | 'warning' | 'info';
+type DashboardAlert = KitDashboardAlert & { severity: AlertSeverity };
 
 interface DashboardMetrics {
   checkinsByAthlete: Map<string, Checkin[]>;
@@ -291,8 +293,6 @@ function useDashboardMetrics(athletes: AthleteRosterRow[]) {
           athleteId: alert.athlete_id,
           athleteName: alert.athlete_name ?? 'Athlete',
           sport: athletes.find(athlete => athlete.id === alert.athlete_id)?.sport ?? '',
-          title: alert.title,
-          description: alert.description,
           detail: `${alert.title} — ${alert.description}`,
           initials: initialsOf(alert.athlete_name ?? 'Athlete'),
         }) satisfies DashboardAlert)
