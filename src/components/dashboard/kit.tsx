@@ -185,19 +185,10 @@ export function NavIcon({ kind }: { kind: NavKind }) {
   }
 }
 
-export function AlertIcon({ type, size = 14 }: { type: AlertKind; size?: number }) {
-  const c = {
-    width: size,
-    height: size,
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.5,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-  };
+export function AlertIcon({ type }: { type: AlertKind }) {
+  const c = { width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
   switch (type) {
     case 'missed':
-    case 'adherence':
       return (
         <svg {...c} viewBox="0 0 16 16">
           <circle cx="8" cy="8" r="6" />
@@ -212,30 +203,9 @@ export function AlertIcon({ type, size = 14 }: { type: AlertKind; size?: number 
         </svg>
       );
     case 'energy':
-    case 'recovery':
       return (
         <svg {...c} viewBox="0 0 16 16">
           <path d="M9 2L4 9h3.5L7 14l5-7H8.5L9 2z" />
-        </svg>
-      );
-    case 'nutrition':
-      // Plate / utensils
-      return (
-        <svg {...c} viewBox="0 0 16 16">
-          <circle cx="8" cy="8" r="6" />
-          <path d="M5.5 5.5v5" />
-          <path d="M10.5 5.5l-1.5 2v3" />
-        </svg>
-      );
-    case 'training':
-      // Dumbbell
-      return (
-        <svg {...c} viewBox="0 0 16 16">
-          <path d="M3 6.5v3" />
-          <path d="M5 5v6" />
-          <path d="M5 8h6" />
-          <path d="M11 5v6" />
-          <path d="M13 6.5v3" />
         </svg>
       );
   }
@@ -344,51 +314,11 @@ export function FilterChip({
 export interface DashboardAlert {
   id: string;
   type: AlertKind;
-  severity?: AlertSeverityLevel;
   athleteName: string;
   athleteId?: string;
   sport: string;
-  /** Optional explicit title — falls back to ALERT_KIND_LABELS[type]. */
-  title?: string;
-  /** Optional explicit body — falls back to `detail` for back-compat. */
-  description?: string;
-  /** Legacy single-line copy. Prefer `title` + `description`. */
   detail: string;
   initials: string;
-}
-
-interface SeverityStyle {
-  accent: string;
-  iconBg: string;
-  tint: string;
-  badgeLabel: string;
-}
-
-function severityStyle(severity: AlertSeverityLevel): SeverityStyle {
-  switch (severity) {
-    case 'critical':
-      return {
-        accent: TOKENS.CRITICAL,
-        iconBg: '#F2D3DC',
-        tint: TOKENS.CRITICAL_BG,
-        badgeLabel: 'Critical',
-      };
-    case 'warning':
-      return {
-        accent: TOKENS.AMBER,
-        iconBg: '#F2DEC3',
-        tint: TOKENS.WARNING_BG,
-        badgeLabel: 'Warning',
-      };
-    case 'info':
-    default:
-      return {
-        accent: TOKENS.SLATE,
-        iconBg: '#E5E5E2',
-        tint: TOKENS.PANEL_BG,
-        badgeLabel: 'Info',
-      };
-  }
 }
 
 export function AlertCard({
@@ -398,87 +328,51 @@ export function AlertCard({
   onDismiss: () => void;
   onClick?: () => void;
 }) {
-  const severity = alert.severity ?? 'warning';
-  const { accent, iconBg, tint, badgeLabel } = severityStyle(severity);
-  const title = alert.title ?? ALERT_KIND_LABELS[alert.type];
-  const description = alert.description ?? alert.detail;
+  const accent =
+    alert.type === 'missed' ? TOKENS.SLATE :
+    alert.type === 'weight' ? TOKENS.AMBER :
+    '#B5478B';
+  const typeLabel =
+    alert.type === 'missed' ? 'No check-in' :
+    alert.type === 'weight' ? 'Weight drop' :
+    'Low energy';
 
   return (
     <div
-      className="rounded-md flex items-stretch overflow-hidden transition-colors"
-      style={{ background: tint, border: `1px solid ${TOKENS.HAIRLINE}` }}
+      className="bg-white rounded-md flex items-stretch overflow-hidden"
+      style={{ border: `1px solid ${TOKENS.HAIRLINE}` }}
     >
-      <span className="w-[5px] shrink-0" style={{ background: accent }} />
-      <div className="flex-1 p-4 flex gap-3 min-w-0">
-        {/* Severity icon in tinted circle */}
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: iconBg, color: accent }}
+      <span className="w-[3px] shrink-0" style={{ background: accent }} />
+      <div className="flex-1 px-4 py-3.5 flex items-center gap-3 min-w-0">
+        <Avatar initials={alert.initials} />
+        <button
+          type="button"
+          onClick={onClick}
+          className="min-w-0 flex-1 text-left disabled:cursor-default"
+          disabled={!onClick}
         >
-          <AlertIcon type={alert.type} size={18} />
-        </div>
-
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          {/* Athlete row */}
-          <div className="flex items-start justify-between gap-2">
-            <button
-              type="button"
-              onClick={onClick}
-              className="min-w-0 text-left disabled:cursor-default"
-              disabled={!onClick}
-            >
-              <div className="flex items-center gap-1.5">
-                <Avatar initials={alert.initials} />
-                <div className="flex flex-col leading-tight min-w-0">
-                  <span className="text-[14px] font-semibold text-slate-900 truncate">
-                    {alert.athleteName}
-                  </span>
-                  <span className="text-[11px] text-slate-500 truncate">{alert.sport}</span>
-                </div>
-              </div>
-            </button>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <span
-                className="text-[10px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded"
-                style={{ background: 'white', color: accent, border: `1px solid ${accent}33` }}
-              >
-                {badgeLabel}
-              </span>
-              <button
-                onClick={onDismiss}
-                aria-label="Dismiss"
-                className="text-slate-400 hover:text-slate-700 p-0.5 transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                     strokeWidth="1.5" strokeLinecap="round">
-                  <path d="M4 4l8 8M12 4l-8 8" />
-                </svg>
-              </button>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-medium text-slate-900 truncate">
+              {alert.athleteName}
+            </span>
+            <span className="text-[11px] text-slate-400 truncate">· {alert.sport}</span>
           </div>
-
-          {/* Title + description */}
-          <div className="mt-0.5">
-            <div className="text-[13px] font-semibold leading-tight" style={{ color: accent }}>
-              {title}
-            </div>
-            <div className="mt-0.5 text-[12px] text-slate-700 leading-snug line-clamp-2">
-              {description}
-            </div>
+          <div className="flex items-center gap-1.5 mt-1 text-[11px]" style={{ color: accent }}>
+            <AlertIcon type={alert.type} />
+            <span className="font-medium">{typeLabel}</span>
+            <span className="text-slate-500 truncate">— {alert.detail}</span>
           </div>
-
-          {onClick && (
-            <button
-              type="button"
-              onClick={onClick}
-              className="self-start mt-1 text-[11px] uppercase tracking-[0.1em] font-medium hover:underline"
-              style={{ color: accent }}
-            >
-              View athlete →
-            </button>
-          )}
-        </div>
+        </button>
+        <button
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="text-slate-300 hover:text-slate-700 p-1 -mr-1 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+               strokeWidth="1.5" strokeLinecap="round">
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
+        </button>
       </div>
     </div>
   );
@@ -542,7 +436,7 @@ export function Sidebar({
         ))}
       </nav>
 
-      {/* <div className="mt-10 mx-5 px-4 py-4 rounded-md bg-white"
+      <div className="mt-10 mx-5 px-4 py-4 rounded-md bg-white"
            style={{ border: `1px solid ${TOKENS.HAIRLINE}` }}>
         <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400 mb-2">
           {weekLabel} · pulse
@@ -569,7 +463,7 @@ export function Sidebar({
             {pulse.received}/{pulse.expected}
           </span>
         </div>
-      </div> */}
+      </div>
 
       <div className="flex-1" />
 

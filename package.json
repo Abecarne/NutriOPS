@@ -10,11 +10,12 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.10.0",
     "@react-pdf/renderer": "^4.1.6",
     "@supabase/supabase-js": "^2.48.1",
-    "@hookform/resolvers": "^3.10.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "nutriops": "link:",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",
