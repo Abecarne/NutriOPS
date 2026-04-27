@@ -42,7 +42,36 @@ export function useAthlete(id: string | undefined) {
 
 export async function updateAthlete(
   id: string,
-  patch: Partial<Pick<Athlete, 'full_name' | 'sport' | 'birth_date' | 'height_cm' | 'goal' | 'status'>>,
+  patch: Partial<Pick<
+    Athlete,
+    | 'full_name'
+    | 'sport'
+    | 'first_name'
+    | 'last_name'
+    | 'email'
+    | 'phone'
+    | 'birth_date'
+    | 'gender'
+    | 'height_cm'
+    | 'current_weight_kg'
+    | 'target_weight_kg'
+    | 'goal'
+    | 'goal_type'
+    | 'experience_level'
+    | 'training_frequency_per_week'
+    | 'available_equipment'
+    | 'injuries'
+    | 'medical_notes'
+    | 'food_preferences'
+    | 'dietary_restrictions'
+    | 'lifestyle_notes'
+    | 'work_schedule'
+    | 'sleep_average_hours'
+    | 'stress_level'
+    | 'motivation_level'
+    | 'onboarding_completed_at'
+    | 'status'
+  >>,
 ): Promise<Athlete> {
   const { data, error } = await supabase
     .from('athletes')

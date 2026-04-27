@@ -9,8 +9,10 @@ import { AthletePage } from '@/pages/AthletePage';
 import { PlansPage } from '@/pages/PlansPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { CheckinPage } from '@/pages/CheckinPage';
+import { WeeklyCheckinPage } from '@/pages/WeeklyCheckinPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { DesignDashboard } from '@/pages/DesignDashboard';
+import { OnboardingPage } from '@/pages/OnboardingPage';
 
 export default function App() {
   return (
@@ -18,6 +20,7 @@ export default function App() {
       <Routes>
         <Route path="/design" element={<DesignDashboard />} />
         <Route path="/checkin/:token" element={<CheckinPage />} />
+        <Route path="/weekly-checkin/:token" element={<WeeklyCheckinPage />} />
         <Route path="/auth" element={<AuthPage />} />
         <Route
           path="/dashboard"
@@ -45,6 +48,16 @@ export default function App() {
             <ProtectedRoute>
               <AppLayout>
                 <AthletePage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/athletes/:id/onboarding"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <OnboardingPage />
               </AppLayout>
             </ProtectedRoute>
           }

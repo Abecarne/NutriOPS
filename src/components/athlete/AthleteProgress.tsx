@@ -451,8 +451,8 @@ function buildWeeklySummary(
     const calorieTargetSum = ts.reduce((s, t) => s + t.calories, 0);
     // Adherence approximated by proportion of days where the athlete declared
     // checkin's nutrition_adherence. Map 'low'->0.5, 'medium'->0.85, 'high'->1.
-    const adhMap = { low: 0.5, medium: 0.85, high: 1 } as const;
-    const declaredScores = cs
+    const adhMap: Record<'low' | 'medium' | 'high', number> = { low: 0.5, medium: 0.85, high: 1 };
+    const declaredScores: number[] = cs
       .map(c => (c.nutrition_adherence ? adhMap[c.nutrition_adherence] : null))
       .filter((v): v is number => v !== null);
     const calorieAdherence = declaredScores.length > 0

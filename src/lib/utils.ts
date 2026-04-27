@@ -86,3 +86,10 @@ export function getCheckinUrl(token: string): string {
   const base = (configuredBase || runtimeBase).replace(/\/+$/, '');
   return `${base}/checkin/${token}`;
 }
+
+export function getWeeklyCheckinUrl(token: string): string {
+  const configuredBase = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
+  const runtimeBase = typeof window !== 'undefined' ? window.location.origin : '';
+  const base = (configuredBase || runtimeBase).replace(/\/+$/, '');
+  return `${base}/weekly-checkin/${token}`;
+}

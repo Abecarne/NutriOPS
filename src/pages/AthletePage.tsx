@@ -5,7 +5,9 @@ import { AthleteProfile } from '@/components/athlete/AthleteProfile';
 import { AthleteProgress } from '@/components/athlete/AthleteProgress';
 import { CheckinDetailModal } from '@/components/athlete/CheckinDetailModal';
 import { CheckinsTable } from '@/components/athlete/CheckinsTable';
+import { CoachNotes } from '@/components/athlete/CoachNotes';
 import { WeekWorkbench } from '@/components/athlete/WeekWorkbench';
+import { WeeklyCheckinsPanel } from '@/components/client/WeeklyCheckinsPanel';
 import { AthleteReportPDF, type ReportData } from '@/components/pdf/AthleteReportPDF';
 import { FilterChip, KPICard, SectionLabel, StatusDot, TOKENS } from '@/components/dashboard/kit';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -23,13 +25,15 @@ import { formatWeekRange, isoDate, isoWeekEnd, isoWeekStart } from '@/lib/utils'
 import { NUTRITION_ADHERENCE_LABELS, TRAINING_SESSION_STATUS_LABELS, TRAINING_SESSION_TYPE_LABELS } from '@/types/database';
 import type { Checkin, CoachNote, DailyNutritionTarget, NutritionMealItem, TrainingSession } from '@/types/database';
 
-type Tab = 'overview' | 'week' | 'daily' | 'progress' | 'reports';
+type Tab = 'overview' | 'checkins' | 'training' | 'nutrition' | 'progress' | 'notes' | 'reports';
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'overview', label: 'Overview' },
-  { key: 'week', label: 'Week' },
-  { key: 'daily', label: 'Daily' },
+  { key: 'checkins', label: 'Check-ins' },
+  { key: 'training', label: 'Training' },
+  { key: 'nutrition', label: 'Nutrition' },
   { key: 'progress', label: 'Progress' },
+  { key: 'notes', label: 'Coach Notes' },
   { key: 'reports', label: 'Reports' },
 ];
 
@@ -144,26 +148,32 @@ export function AthletePage() {
         />
       )}
 
-      {activeTab === 'daily' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Check-ins quotidiens</CardTitle>
-            <span className="text-[11px] text-slate-500">
-              Clique une ligne pour voir le détail soumis par l'athlète.
-            </span>
-          </CardHeader>
-          <CardBody>
-            {checkins.error && <ErrorMessage message={checkins.error} className="mb-4" />}
-            {checkins.loading ? (
-              <div className="py-10 flex justify-center"><Spinner className="h-6 w-6" /></div>
-            ) : (
-              <CheckinsTable
-                checkins={checkins.checkins}
-                onRowClick={setDetailCheckin}
-              />
-            )}
-          </CardBody>
-        </Card>
+      {activeTab === 'checkins' && (
+        <div className="flex flex-col gap-4">
+          <WeeklyCheckinsPanel
+            athlete={athlete}
+            missedSessionsCount={training.sessions.filter(session => session.status === 'missed').length}
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Check-ins quotidiens</CardTitle>
+              <span className="text-[11px] text-slate-500">
+                Clique une ligne pour voir le détail soumis par le client.
+              </span>
+            </CardHeader>
+            <CardBody>
+              {checkins.error && <ErrorMessage message={checkins.error} className="mb-4" />}
+              {checkins.loading ? (
+                <div className="py-10 flex justify-center"><Spinner className="h-6 w-6" /></div>
+              ) : (
+                <CheckinsTable
+                  checkins={checkins.checkins}
+                  onRowClick={setDetailCheckin}
+                />
+              )}
+            </CardBody>
+          </Card>
+        </div>
       )}
 
       <CheckinDetailModal
@@ -173,7 +183,30 @@ export function AthletePage() {
         sessions={training.sessions}
       />
 
-      {activeTab === 'week' && (
+      {activeTab === 'training' && (
+        <WeekWorkbench
+          athleteId={athlete.id}
+          weekStart={weekStart}
+          onWeekChange={setWeekStart}
+          sessionsByDate={training.byDate}
+          sessions={training.sessions}
+          trainingLoading={training.loading}
+          trainingError={training.error}
+          upsertSession={training.upsertSession}
+          deleteSession={training.deleteSession}
+          duplicatePreviousWeek={training.duplicatePreviousWeek}
+          targetsByDate={nutrition.byDate}
+          mealItemsByTargetId={nutrition.mealItemsByTargetId}
+          nutritionLoading={nutrition.loading}
+          nutritionError={nutrition.error}
+          upsertTarget={nutrition.upsertTarget}
+          upsertMealItem={nutrition.upsertMealItem}
+          deleteMealItem={nutrition.deleteMealItem}
+          generateWeekFromSessions={nutrition.generateWeekFromSessions}
+        />
+      )}
+
+      {activeTab === 'nutrition' && (
         <WeekWorkbench
           athleteId={athlete.id}
           weekStart={weekStart}
@@ -198,6 +231,17 @@ export function AthletePage() {
 
       {activeTab === 'progress' && (
         <AthleteProgress athleteId={athlete.id} />
+      )}
+
+      {activeTab === 'notes' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notes privées coach</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <CoachNotes athleteId={athlete.id} weekStart={weekStart} />
+          </CardBody>
+        </Card>
       )}
 
       {activeTab === 'reports' && (

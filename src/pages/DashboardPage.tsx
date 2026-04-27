@@ -14,14 +14,16 @@ import {
   StatusDot,
   TOKENS,
   initialsOf,
+  type AlertKind,
   type DashboardAlert as KitDashboardAlert,
 } from '@/components/dashboard/kit';
 import { useAthletes } from '@/hooks/useAthletes';
 import { computeAthleteAlerts } from '@/lib/alerts';
+import { generateClientAlerts } from '@/lib/clientAlerts';
 import { createRequestTimeout, requestErrorMessage } from '@/lib/requestTimeout';
 import { supabase } from '@/lib/supabase';
-import { isoDate, relativeFromNow } from '@/lib/utils';
-import type { AthleteRosterRow, AthleteStatus, Checkin, DailyNutritionTarget, TrainingSession } from '@/types/database';
+import { formatDateShort, isoDate, relativeFromNow } from '@/lib/utils';
+import type { AthleteRosterRow, AthleteStatus, Checkin, DailyNutritionTarget, TrainingSession, WeeklyCheckIn } from '@/types/database';
 
 type Filter = 'all' | AthleteStatus;
 type AlertSeverity = 'critical' | 'warning' | 'info';
@@ -29,6 +31,7 @@ type DashboardAlert = KitDashboardAlert & { severity: AlertSeverity };
 
 interface DashboardMetrics {
   checkinsByAthlete: Map<string, Checkin[]>;
+  weeklyCheckinsByAthlete: Map<string, WeeklyCheckIn[]>;
   sessionsByAthlete: Map<string, TrainingSession[]>;
   targetsByAthlete: Map<string, DailyNutritionTarget>;
   alerts: DashboardAlert[];
@@ -59,6 +62,11 @@ export function DashboardPage() {
 
   const today = isoDate();
   const checkedInToday = athletes.filter(a => a.last_checkin?.checkin_date === today).length;
+  const weeklyToReview = athletes.filter(a => !a.last_weekly_checkin || daysSince(a.last_weekly_checkin.week_start_date) > 10).length;
+  const lowAdherence = athletes.filter(a => {
+    const weekly = a.last_weekly_checkin;
+    return weekly ? weekly.training_adherence_percent < 70 || weekly.nutrition_adherence_percent < 70 : false;
+  }).length;
   const todaysSessions = Array.from(metrics.sessionsByAthlete.values()).flat().length;
   const missingTargets = athletes.filter(a => !metrics.targetsByAthlete.has(a.id)).length;
   const visibleAlerts = metrics.alerts.filter(alert => !dismissedAlerts.includes(alert.id)).slice(0, 6);
@@ -77,9 +85,9 @@ export function DashboardPage() {
             delta={{ value: `${countByStatus.injured}`, tone: countByStatus.injured > 0 ? 'neg' : 'mute', text: 'injured' }}
           />
           <KPICard
-            label="Check-ins today"
+            label="Check-ins"
             value={`${checkedInToday}/${athletes.length}`}
-            subline="Daily readiness received"
+            subline={`${weeklyToReview} weekly to review`}
             progress={athletes.length === 0 ? 0 : checkedInToday / athletes.length}
           />
           <KPICard
@@ -99,9 +107,9 @@ export function DashboardPage() {
                   : 'All clear today'
             }
             delta={{
-              value: String(missingTargets),
+              value: String(lowAdherence || missingTargets),
               tone: missingTargets ? 'neg' : 'mute',
-              text: 'nutrition missing',
+              text: lowAdherence ? 'low adherence' : 'nutrition missing',
             }}
           />
         </div>
@@ -213,6 +221,7 @@ export function DashboardPage() {
 function useDashboardMetrics(athletes: AthleteRosterRow[]) {
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     checkinsByAthlete: new Map(),
+    weeklyCheckinsByAthlete: new Map(),
     sessionsByAthlete: new Map(),
     targetsByAthlete: new Map(),
     alerts: [],
@@ -223,7 +232,7 @@ function useDashboardMetrics(athletes: AthleteRosterRow[]) {
 
   const load = useCallback(async () => {
     if (athletes.length === 0) {
-      setMetrics({ checkinsByAthlete: new Map(), sessionsByAthlete: new Map(), targetsByAthlete: new Map(), alerts: [] });
+      setMetrics({ checkinsByAthlete: new Map(), weeklyCheckinsByAthlete: new Map(), sessionsByAthlete: new Map(), targetsByAthlete: new Map(), alerts: [] });
       setLoading(false);
       return;
     }
@@ -251,6 +260,15 @@ function useDashboardMetrics(athletes: AthleteRosterRow[]) {
         .abortSignal(timeout.signal);
       if (sessionsError) throw sessionsError;
 
+      const { data: weeklyCheckins, error: weeklyError } = await supabase
+        .from('weekly_checkins')
+        .select('*')
+        .in('athlete_id', athleteIds)
+        .order('week_start_date', { ascending: false })
+        .limit(athleteIds.length * 6)
+        .abortSignal(timeout.signal);
+      if (weeklyError) throw weeklyError;
+
       const { data: targets, error: targetsError } = await supabase
         .from('daily_nutrition_targets')
         .select('*')
@@ -270,6 +288,12 @@ function useDashboardMetrics(athletes: AthleteRosterRow[]) {
         sessionsByAthlete.set(row.athlete_id, [...(sessionsByAthlete.get(row.athlete_id) ?? []), row]);
       }
 
+      const weeklyCheckinsByAthlete = new Map<string, WeeklyCheckIn[]>();
+      for (const row of (weeklyCheckins ?? []) as WeeklyCheckIn[]) {
+        const rows = weeklyCheckinsByAthlete.get(row.athlete_id) ?? [];
+        if (rows.length < 6) weeklyCheckinsByAthlete.set(row.athlete_id, [...rows, row]);
+      }
+
       const targetsByAthlete = new Map<string, DailyNutritionTarget>();
       for (const row of (targets ?? []) as DailyNutritionTarget[]) {
         targetsByAthlete.set(row.athlete_id, row);
@@ -278,18 +302,35 @@ function useDashboardMetrics(athletes: AthleteRosterRow[]) {
       const severityRank: Record<'critical' | 'warning' | 'info', number> = {
         critical: 0, warning: 1, info: 2,
       };
-      const alerts = athletes
-        .flatMap(athlete => computeAthleteAlerts({
-          athlete,
-          checkins: checkinsByAthlete.get(athlete.id) ?? [],
-          sessions: sessionsByAthlete.get(athlete.id) ?? [],
-          targets: targetsByAthlete.get(athlete.id) ? [targetsByAthlete.get(athlete.id)!] : [],
-          today,
-        }))
+      const dailyAlerts = athletes.flatMap(athlete => computeAthleteAlerts({
+        athlete,
+        checkins: checkinsByAthlete.get(athlete.id) ?? [],
+        sessions: sessionsByAthlete.get(athlete.id) ?? [],
+        targets: targetsByAthlete.get(athlete.id) ? [targetsByAthlete.get(athlete.id)!] : [],
+        today,
+      }));
+
+      const weeklyAlerts = athletes.flatMap(athlete => generateClientAlerts({
+        athlete,
+        weeklyCheckins: weeklyCheckinsByAthlete.get(athlete.id) ?? [],
+        missedSessionsCount: (sessionsByAthlete.get(athlete.id) ?? []).filter(session => session.status === 'missed').length,
+        today,
+      }).map(alert => ({
+        id: `${athlete.id}-${alert.type}`,
+        athlete_id: athlete.id,
+        athlete_name: athlete.full_name,
+        alert_date: today,
+        category: dashboardKindForClientAlert(alert.type),
+        severity: alert.severity === 'high' ? 'critical' : alert.severity === 'medium' ? 'warning' : 'info',
+        title: alert.title,
+        description: `${alert.description} ${alert.suggestedAction}`,
+      })));
+
+      const alerts = [...dailyAlerts, ...weeklyAlerts]
         .map(alert => ({
           id: alert.id,
-          type: alert.category, // already 'recovery' | 'nutrition' | 'training' | 'adherence' | 'weight'
-          severity: alert.severity,
+          type: dashboardKind(alert.category),
+          severity: alert.severity as AlertSeverity,
           athleteId: alert.athlete_id,
           athleteName: alert.athlete_name ?? 'Athlete',
           sport: athletes.find(athlete => athlete.id === alert.athlete_id)?.sport ?? '',
@@ -299,7 +340,7 @@ function useDashboardMetrics(athletes: AthleteRosterRow[]) {
         .sort((a, b) => severityRank[a.severity ?? 'info'] - severityRank[b.severity ?? 'info'])
         .slice(0, 12);
 
-      setMetrics({ checkinsByAthlete, sessionsByAthlete, targetsByAthlete, alerts });
+      setMetrics({ checkinsByAthlete, weeklyCheckinsByAthlete, sessionsByAthlete, targetsByAthlete, alerts });
     } catch (err) {
       setError(requestErrorMessage(err));
     } finally {
@@ -311,6 +352,23 @@ function useDashboardMetrics(athletes: AthleteRosterRow[]) {
   useEffect(() => { void load(); }, [load]);
 
   return { metrics, loading, error };
+}
+
+function dashboardKind(category: unknown): AlertKind {
+  if (category === 'weight') return 'weight';
+  if (category === 'nutrition') return 'nutrition';
+  if (category === 'training') return 'training';
+  if (category === 'recovery') return 'recovery';
+  if (category === 'adherence') return 'adherence';
+  return 'adherence';
+}
+
+function dashboardKindForClientAlert(type: string): AlertKind {
+  if (type.includes('nutrition')) return 'nutrition';
+  if (type.includes('training') || type.includes('missed')) return 'training';
+  if (type.includes('weight')) return 'weight';
+  if (type.includes('energy') || type.includes('soreness') || type.includes('stress')) return 'recovery';
+  return 'adherence';
 }
 
 function FilterTab({
@@ -354,7 +412,7 @@ function RosterTable({
         <div>Energy</div>
         <div>Soreness</div>
         <div>Training today</div>
-        <div>Nutrition today</div>
+        <div>Weekly adherence</div>
         <div className="text-right">Action</div>
       </div>
 
@@ -365,6 +423,7 @@ function RosterTable({
           checkins={metrics.checkinsByAthlete.get(athlete.id) ?? []}
           sessions={metrics.sessionsByAthlete.get(athlete.id) ?? []}
           target={metrics.targetsByAthlete.get(athlete.id) ?? null}
+          weeklyCheckins={metrics.weeklyCheckinsByAthlete.get(athlete.id) ?? []}
           cols={cols}
           last={index === athletes.length - 1}
         />
@@ -378,6 +437,7 @@ function RosterRow({
   checkins,
   sessions,
   target,
+  weeklyCheckins,
   cols,
   last,
 }: {
@@ -385,6 +445,7 @@ function RosterRow({
   checkins: Checkin[];
   sessions: TrainingSession[];
   target: DailyNutritionTarget | null;
+  weeklyCheckins: WeeklyCheckIn[];
   cols: string;
   last: boolean;
 }) {
@@ -397,7 +458,7 @@ function RosterRow({
   const energyTrend = orderedCheckins.map(checkin => checkin.energy_level);
   const sorenessTrend = orderedCheckins.map(checkin => checkin.soreness_level ?? 0).filter(Boolean);
   const mainSession = sessions[0];
-  const adherence = latest?.nutrition_adherence ?? null;
+  const latestWeekly = weeklyCheckins[0] ?? athlete.last_weekly_checkin ?? null;
 
   return (
     <Link
@@ -442,10 +503,23 @@ function RosterRow({
       </div>
 
       <div className="flex flex-col leading-tight">
-        <span className="font-mono tabular-nums text-[12px]" style={{ color: target ? TOKENS.TEAL : TOKENS.AMBER }}>
-          {target ? `${target.calories} kcal` : 'Missing'}
-        </span>
-        <AdherenceBadge adherence={adherence} dayType={target?.day_type} />
+        {latestWeekly ? (
+          <>
+            <span className="font-mono tabular-nums text-[12px]" style={{ color: latestWeekly.training_adherence_percent < 70 ? TOKENS.AMBER : TOKENS.TEAL }}>
+              T {latestWeekly.training_adherence_percent}%
+            </span>
+            <span className="font-mono tabular-nums text-[11px]" style={{ color: latestWeekly.nutrition_adherence_percent < 70 ? TOKENS.AMBER : TOKENS.SLATE }}>
+              N {latestWeekly.nutrition_adherence_percent}% · {formatDateShort(latestWeekly.week_start_date)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-mono tabular-nums text-[12px]" style={{ color: target ? TOKENS.SLATE : TOKENS.AMBER }}>
+              {target ? `${target.calories} kcal` : 'Missing'}
+            </span>
+            <span className="text-[10px] text-slate-400">No weekly check-in</span>
+          </>
+        )}
       </div>
 
       <div className="text-right">
@@ -466,30 +540,6 @@ function WeightDelta({ delta, fallback }: { delta: number | null; fallback: stri
   return (
     <span className="text-[10px] font-mono tabular-nums" style={{ color: tone }}>
       {delta > 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(1)} kg
-    </span>
-  );
-}
-
-function AdherenceBadge({
-  adherence,
-  dayType,
-}: {
-  adherence: 'low' | 'medium' | 'high' | null;
-  dayType?: string;
-}) {
-  if (!adherence) {
-    return <span className="text-[10px] text-slate-400">{dayType ?? 'No target'}</span>;
-  }
-  const map = {
-    low:    { color: TOKENS.AMBER, label: 'Adh. faible' },
-    medium: { color: TOKENS.SLATE, label: 'Adh. moyenne' },
-    high:   { color: TOKENS.TEAL,  label: 'Adh. bonne' },
-  } as const;
-  const { color, label } = map[adherence];
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px]" style={{ color }}>
-      <span className="w-1 h-1 rounded-full" style={{ background: color }} />
-      {label}
     </span>
   );
 }
