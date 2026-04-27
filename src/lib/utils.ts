@@ -81,6 +81,8 @@ export function isValidHexColor(value: string): boolean {
 }
 
 export function getCheckinUrl(token: string): string {
-  const base = typeof window !== 'undefined' ? window.location.origin : '';
+  const configuredBase = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
+  const runtimeBase = typeof window !== 'undefined' ? window.location.origin : '';
+  const base = (configuredBase || runtimeBase).replace(/\/+$/, '');
   return `${base}/checkin/${token}`;
 }

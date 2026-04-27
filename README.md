@@ -43,7 +43,10 @@ Tables principales :
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_PUBLIC_APP_URL=https://your-domain.vercel.app
 ```
+
+`VITE_PUBLIC_APP_URL` est optionnel en local, mais recommandé sur Vercel pour que les liens de check-in partagés utilisent toujours le domaine public attendu.
 
 4. Lancer le projet :
 
