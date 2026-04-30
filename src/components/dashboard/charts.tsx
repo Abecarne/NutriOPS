@@ -267,6 +267,126 @@ export function NutritionCoverageBars({ points, height = 240 }: { points: Nutrit
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Priority 2 reusable charts — public dashboard API
+// ─────────────────────────────────────────────────────────────────────
+
+export function WeightProgressChart({ points, height = 240 }: { points: WeightPoint[]; height?: number }) {
+  return <WeightCurve points={points} height={height} />;
+}
+
+export interface AdherencePoint {
+  date: string;
+  training: number;
+  nutrition: number;
+}
+
+export function AdherenceChart({ points, height = 240 }: { points: AdherencePoint[]; height?: number }) {
+  if (points.length === 0) {
+    return <EmptyChart message="Aucune donnée d'adhérence sur la période." height={height} />;
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={points} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke={TOKENS.HAIRLINE} strokeDasharray="2 4" vertical={false} />
+        <XAxis dataKey="date" stroke={TOKENS.HAIRLINE} tick={AXIS_TICK} tickLine={false} />
+        <YAxis stroke={TOKENS.HAIRLINE} tick={AXIS_TICK} tickLine={false} domain={[0, 100]} width={34} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} formatter={(value: number) => [`${value}%`, '']} />
+        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" />
+        <ReferenceLine y={70} stroke={TOKENS.AMBER} strokeDasharray="3 3" />
+        <Line type="monotone" dataKey="training" name="Entraînement" stroke={TOKENS.TEAL} strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+        <Line type="monotone" dataKey="nutrition" name="Nutrition" stroke={TOKENS.AMBER} strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+export interface EnergySleepPoint {
+  date: string;
+  energy: number;
+  sleep: number;
+}
+
+export function EnergySleepChart({ points, height = 240 }: { points: EnergySleepPoint[]; height?: number }) {
+  if (points.length === 0) {
+    return <EmptyChart message="Aucune donnée énergie/sommeil." height={height} />;
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={points} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke={TOKENS.HAIRLINE} strokeDasharray="2 4" vertical={false} />
+        <XAxis dataKey="date" stroke={TOKENS.HAIRLINE} tick={AXIS_TICK} tickLine={false} />
+        <YAxis stroke={TOKENS.HAIRLINE} tick={AXIS_TICK} tickLine={false} domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} width={24} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
+        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" />
+        <Line type="monotone" dataKey="energy" name="Énergie" stroke={TOKENS.TEAL} strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+        <Line type="monotone" dataKey="sleep" name="Sommeil" stroke="#5B7CC9" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+export interface PerformancePoint {
+  date: string;
+  exercise: string;
+  load: number;
+  rpe?: number | null;
+}
+
+export function PerformanceChart({ points, height = 240 }: { points: PerformancePoint[]; height?: number }) {
+  if (points.length === 0) {
+    return <EmptyChart message="Aucune performance d'exercice disponible." height={height} />;
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={points} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke={TOKENS.HAIRLINE} strokeDasharray="2 4" vertical={false} />
+        <XAxis dataKey="date" stroke={TOKENS.HAIRLINE} tick={AXIS_TICK} tickLine={false} />
+        <YAxis stroke={TOKENS.HAIRLINE} tick={AXIS_TICK} tickLine={false} width={34} />
+        <Tooltip
+          contentStyle={TOOLTIP_STYLE}
+          labelStyle={TOOLTIP_LABEL_STYLE}
+          formatter={(value: number, key: string) => [key === 'load' ? `${value} kg` : value, key === 'load' ? 'Charge' : 'RPE']}
+        />
+        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" />
+        <Line type="monotone" dataKey="load" name="Charge" stroke={TOKENS.TEAL} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 3 }} />
+        <Line type="monotone" dataKey="rpe" name="RPE" stroke={TOKENS.AMBER} strokeWidth={1.75} dot={false} strokeDasharray="3 3" />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+export interface CheckInTrendPoint {
+  date: string;
+  energy: number;
+  sleep: number;
+  stress: number;
+  soreness: number;
+  motivation: number;
+}
+
+export function CheckInTrendChart({ points, height = 260 }: { points: CheckInTrendPoint[]; height?: number }) {
+  if (points.length === 0) {
+    return <EmptyChart message="Aucune tendance de check-in disponible." height={height} />;
+  }
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={points} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke={TOKENS.HAIRLINE} strokeDasharray="2 4" vertical={false} />
+        <XAxis dataKey="date" stroke={TOKENS.HAIRLINE} tick={AXIS_TICK} tickLine={false} />
+        <YAxis stroke={TOKENS.HAIRLINE} tick={AXIS_TICK} tickLine={false} domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} width={24} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
+        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} iconType="plainline" />
+        <Line type="monotone" dataKey="energy" name="Énergie" stroke={TOKENS.TEAL} strokeWidth={1.75} dot={false} />
+        <Line type="monotone" dataKey="sleep" name="Sommeil" stroke="#5B7CC9" strokeWidth={1.75} dot={false} />
+        <Line type="monotone" dataKey="stress" name="Stress" stroke="#B5478B" strokeWidth={1.75} dot={false} />
+        <Line type="monotone" dataKey="soreness" name="Soreness" stroke={TOKENS.AMBER} strokeWidth={1.75} dot={false} />
+        <Line type="monotone" dataKey="motivation" name="Motivation" stroke={TOKENS.SLATE} strokeWidth={1.75} dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Correlation scatter — generic (x, y, size?) plot
 // ─────────────────────────────────────────────────────────────────────
 

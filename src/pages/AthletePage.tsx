@@ -8,7 +8,9 @@ import { CheckinsTable } from '@/components/athlete/CheckinsTable';
 import { CoachNotes } from '@/components/athlete/CoachNotes';
 import { WeekWorkbench } from '@/components/athlete/WeekWorkbench';
 import { WeeklyCheckinsPanel } from '@/components/client/WeeklyCheckinsPanel';
+import { NutritionTrackingPanel } from '@/components/nutrition/NutritionTrackingPanel';
 import { AthleteReportPDF, type ReportData } from '@/components/pdf/AthleteReportPDF';
+import { TrainingProgramPanel } from '@/components/training/TrainingProgramPanel';
 import { FilterChip, KPICard, SectionLabel, StatusDot, TOKENS } from '@/components/dashboard/kit';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -184,49 +186,55 @@ export function AthletePage() {
       />
 
       {activeTab === 'training' && (
-        <WeekWorkbench
-          athleteId={athlete.id}
-          weekStart={weekStart}
-          onWeekChange={setWeekStart}
-          sessionsByDate={training.byDate}
-          sessions={training.sessions}
-          trainingLoading={training.loading}
-          trainingError={training.error}
-          upsertSession={training.upsertSession}
-          deleteSession={training.deleteSession}
-          duplicatePreviousWeek={training.duplicatePreviousWeek}
-          targetsByDate={nutrition.byDate}
-          mealItemsByTargetId={nutrition.mealItemsByTargetId}
-          nutritionLoading={nutrition.loading}
-          nutritionError={nutrition.error}
-          upsertTarget={nutrition.upsertTarget}
-          upsertMealItem={nutrition.upsertMealItem}
-          deleteMealItem={nutrition.deleteMealItem}
-          generateWeekFromSessions={nutrition.generateWeekFromSessions}
-        />
+        <div className="flex flex-col gap-4">
+          <TrainingProgramPanel athleteId={athlete.id} />
+          <WeekWorkbench
+            athleteId={athlete.id}
+            weekStart={weekStart}
+            onWeekChange={setWeekStart}
+            sessionsByDate={training.byDate}
+            sessions={training.sessions}
+            trainingLoading={training.loading}
+            trainingError={training.error}
+            upsertSession={training.upsertSession}
+            deleteSession={training.deleteSession}
+            duplicatePreviousWeek={training.duplicatePreviousWeek}
+            targetsByDate={nutrition.byDate}
+            mealItemsByTargetId={nutrition.mealItemsByTargetId}
+            nutritionLoading={nutrition.loading}
+            nutritionError={nutrition.error}
+            upsertTarget={nutrition.upsertTarget}
+            upsertMealItem={nutrition.upsertMealItem}
+            deleteMealItem={nutrition.deleteMealItem}
+            generateWeekFromSessions={nutrition.generateWeekFromSessions}
+          />
+        </div>
       )}
 
       {activeTab === 'nutrition' && (
-        <WeekWorkbench
-          athleteId={athlete.id}
-          weekStart={weekStart}
-          onWeekChange={setWeekStart}
-          sessionsByDate={training.byDate}
-          sessions={training.sessions}
-          trainingLoading={training.loading}
-          trainingError={training.error}
-          upsertSession={training.upsertSession}
-          deleteSession={training.deleteSession}
-          duplicatePreviousWeek={training.duplicatePreviousWeek}
-          targetsByDate={nutrition.byDate}
-          mealItemsByTargetId={nutrition.mealItemsByTargetId}
-          nutritionLoading={nutrition.loading}
-          nutritionError={nutrition.error}
-          upsertTarget={nutrition.upsertTarget}
-          upsertMealItem={nutrition.upsertMealItem}
-          deleteMealItem={nutrition.deleteMealItem}
-          generateWeekFromSessions={nutrition.generateWeekFromSessions}
-        />
+        <div className="flex flex-col gap-4">
+          <NutritionTrackingPanel athleteId={athlete.id} />
+          <WeekWorkbench
+            athleteId={athlete.id}
+            weekStart={weekStart}
+            onWeekChange={setWeekStart}
+            sessionsByDate={training.byDate}
+            sessions={training.sessions}
+            trainingLoading={training.loading}
+            trainingError={training.error}
+            upsertSession={training.upsertSession}
+            deleteSession={training.deleteSession}
+            duplicatePreviousWeek={training.duplicatePreviousWeek}
+            targetsByDate={nutrition.byDate}
+            mealItemsByTargetId={nutrition.mealItemsByTargetId}
+            nutritionLoading={nutrition.loading}
+            nutritionError={nutrition.error}
+            upsertTarget={nutrition.upsertTarget}
+            upsertMealItem={nutrition.upsertMealItem}
+            deleteMealItem={nutrition.deleteMealItem}
+            generateWeekFromSessions={nutrition.generateWeekFromSessions}
+          />
+        </div>
       )}
 
       {activeTab === 'progress' && (

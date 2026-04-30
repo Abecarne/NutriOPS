@@ -6,6 +6,8 @@ export type NutritionAdherence = 'low' | 'medium' | 'high';
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'pre_training' | 'post_training';
 export type TrainingSessionType = 'strength' | 'endurance' | 'technical' | 'recovery' | 'competition' | 'mobility' | 'other';
 export type TrainingSessionStatus = 'planned' | 'completed' | 'modified' | 'missed';
+export type TrainingProgramStatus = 'active' | 'archived' | 'draft';
+export type MealLogType = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'other';
 export type AlertSeverity = 'info' | 'warning' | 'critical';
 export type AlertCategory = 'recovery' | 'nutrition' | 'training' | 'adherence' | 'weight';
 export type CoachFeedbackRelatedType = 'checkin' | 'session' | 'nutrition' | 'general';
@@ -15,6 +17,8 @@ export const DAY_TYPES: DayType[] = ['intense', 'light', 'rest', 'competition'];
 export const MEAL_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack', 'pre_training', 'post_training'];
 export const TRAINING_SESSION_TYPES: TrainingSessionType[] = ['strength', 'endurance', 'technical', 'recovery', 'competition', 'mobility', 'other'];
 export const TRAINING_SESSION_STATUSES: TrainingSessionStatus[] = ['planned', 'completed', 'modified', 'missed'];
+export const TRAINING_PROGRAM_STATUSES: TrainingProgramStatus[] = ['active', 'archived', 'draft'];
+export const MEAL_LOG_TYPES: MealLogType[] = ['breakfast', 'lunch', 'dinner', 'snack', 'other'];
 export const CLIENT_GOAL_TYPES = ['fat_loss', 'muscle_gain', 'strength', 'performance', 'health', 'recomposition'] as const satisfies readonly ClientGoalType[];
 export const CLIENT_EXPERIENCE_LEVELS = ['beginner', 'intermediate', 'advanced'] as const satisfies readonly ClientExperienceLevel[];
 
@@ -78,6 +82,20 @@ export const TRAINING_SESSION_STATUS_LABELS: Record<TrainingSessionStatus, strin
   missed: 'Manquée',
 };
 
+export const TRAINING_PROGRAM_STATUS_LABELS: Record<TrainingProgramStatus, string> = {
+  active: 'Actif',
+  archived: 'Archivé',
+  draft: 'Brouillon',
+};
+
+export const MEAL_LOG_TYPE_LABELS: Record<MealLogType, string> = {
+  breakfast: 'Petit-déjeuner',
+  lunch: 'Déjeuner',
+  dinner: 'Dîner',
+  snack: 'Collation',
+  other: 'Autre',
+};
+
 export interface Coach {
   id: string;
   email: string;
@@ -120,6 +138,10 @@ export interface Athlete {
   stress_level: number;
   motivation_level: number;
   onboarding_completed_at: string | null;
+  onboarding_data: Record<string, unknown>;
+  onboarding_skipped_steps: string[];
+  onboarding_completed_steps: string[];
+  onboarding_last_step: string | null;
   updated_at: string;
 }
 
@@ -231,6 +253,90 @@ export interface TrainingSession {
   coach_notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TrainingProgram {
+  id: string;
+  athlete_id: string;
+  title: string;
+  goal: string;
+  start_date: string;
+  end_date: string | null;
+  status: TrainingProgramStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingWeek {
+  id: string;
+  program_id: string;
+  week_number: number;
+  focus: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingProgramSession {
+  id: string;
+  week_id: string;
+  title: string;
+  scheduled_date: string | null;
+  status: TrainingSessionStatus;
+  session_type: TrainingSessionType;
+  duration_minutes: number | null;
+  notes: string | null;
+  linked_session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingExercise {
+  id: string;
+  session_id: string;
+  exercise_name: string;
+  sets: number;
+  reps: string;
+  target_load_kg: number | null;
+  actual_load_kg: number | null;
+  tempo: string | null;
+  rest_seconds: number | null;
+  rpe: number | null;
+  notes: string | null;
+  video_url: string | null;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NutritionTarget {
+  id: string;
+  athlete_id: string;
+  calories_target: number;
+  protein_target_g: number;
+  carbs_target_g: number;
+  fat_target_g: number;
+  water_target_l: number | null;
+  notes: string | null;
+  start_date: string;
+  end_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MealLog {
+  id: string;
+  athlete_id: string;
+  log_date: string;
+  meal_type: MealLogType;
+  description: string;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  photo_url: string | null;
+  adherence_rating: number | null;
+  created_at: string;
 }
 
 export interface AthleteAlert {

@@ -70,6 +70,10 @@ export async function updateAthlete(
     | 'stress_level'
     | 'motivation_level'
     | 'onboarding_completed_at'
+    | 'onboarding_data'
+    | 'onboarding_skipped_steps'
+    | 'onboarding_completed_steps'
+    | 'onboarding_last_step'
     | 'status'
   >>,
 ): Promise<Athlete> {

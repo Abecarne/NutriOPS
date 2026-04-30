@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClientProfileForm } from '@/components/client/ClientProfileForm';
+import { OnboardingAnswersEditor } from '@/components/client/OnboardingAnswersEditor';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
@@ -129,6 +130,7 @@ export function AthleteProfile({ athlete, onUpdated }: Props) {
                   Ouvrir l'onboarding
                 </Link>
               </div>
+              <OnboardingAnswersEditor athlete={athlete} onSaved={onUpdated} />
             </div>
             <div className="sm:col-span-2 mt-2 border-t border-slate-100 pt-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
