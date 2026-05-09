@@ -12,6 +12,8 @@ export type AlertSeverity = 'info' | 'warning' | 'critical';
 export type AlertCategory = 'recovery' | 'nutrition' | 'training' | 'adherence' | 'weight';
 export type CoachFeedbackRelatedType = 'checkin' | 'session' | 'nutrition' | 'general';
 export type CoachFeedbackVisibility = 'client_visible' | 'private';
+export type HealthProvider = 'whoop' | 'apple_health' | 'health_connect';
+export type HealthConnectionStatus = 'connected' | 'disconnected' | 'error' | 'syncing';
 
 export const DAY_TYPES: DayType[] = ['intense', 'light', 'rest', 'competition'];
 export const MEAL_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack', 'pre_training', 'post_training'];
@@ -367,6 +369,67 @@ export interface CoachFeedback {
   message: string;
   visibility: CoachFeedbackVisibility;
   created_at: string;
+}
+
+export interface HealthConnection {
+  id: string;
+  athlete_id: string;
+  provider: HealthProvider;
+  status: HealthConnectionStatus;
+  external_user_id: string | null;
+  external_email: string | null;
+  scopes: string[];
+  connected_at: string;
+  last_sync_at: string | null;
+  sync_cursor: Record<string, unknown>;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HealthDailyMetric {
+  id: string;
+  athlete_id: string;
+  provider: HealthProvider;
+  metric_date: string;
+  steps: number | null;
+  active_calories: number | null;
+  total_calories: number | null;
+  distance_meters: number | null;
+  sleep_minutes: number | null;
+  sleep_efficiency_percent: number | null;
+  sleep_performance_percent: number | null;
+  resting_heart_rate: number | null;
+  hrv_rmssd_ms: number | null;
+  respiratory_rate: number | null;
+  spo2_percent: number | null;
+  skin_temp_celsius: number | null;
+  strain: number | null;
+  recovery_score: number | null;
+  weight_kg: number | null;
+  raw_payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HealthWorkout {
+  id: string;
+  athlete_id: string;
+  provider: HealthProvider;
+  external_id: string;
+  sport: string | null;
+  start_at: string;
+  end_at: string | null;
+  timezone_offset: string | null;
+  duration_seconds: number | null;
+  calories: number | null;
+  distance_meters: number | null;
+  average_heart_rate: number | null;
+  max_heart_rate: number | null;
+  strain: number | null;
+  raw_payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AthleteRosterRow extends Athlete {

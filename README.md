@@ -44,9 +44,20 @@ Tables principales :
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_PUBLIC_APP_URL=https://your-domain.vercel.app
+VITE_WHOOP_CLIENT_ID=your-whoop-client-id
 ```
 
 `VITE_PUBLIC_APP_URL` est optionnel en local, mais recommandé sur Vercel pour que les liens de check-in partagés utilisent toujours le domaine public attendu.
+
+Pour l'intégration WHOOP, configure aussi les secrets des Edge Functions Supabase :
+
+```bash
+supabase secrets set WHOOP_CLIENT_ID=your-whoop-client-id
+supabase secrets set WHOOP_CLIENT_SECRET=your-whoop-client-secret
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+L'URL de redirection WHOOP à déclarer côté WHOOP est `https://your-domain.com/integrations/whoop/callback` ou `http://localhost:5173/integrations/whoop/callback` en local.
 
 4. Lancer le projet :
 
@@ -62,6 +73,8 @@ pnpm dev
 - `/athletes/:id` : overview, check-ins quotidiens, training planner, nutrition quotidienne, progression, export PDF
 - `/plans` : couverture hebdomadaire nutrition + entraînement
 - `/reports` : exports PDF par athlète
+- `/integrations` : connexions santé, sync WHOOP et providers à venir
+- `/integrations/whoop/callback` : retour OAuth WHOOP
 - `/checkin/:token` : formulaire public quotidien avec séance(s), nutrition cible et feedback post-séance
 - `/settings` : profil coach, couleur primaire, upload logo, preview PDF
 

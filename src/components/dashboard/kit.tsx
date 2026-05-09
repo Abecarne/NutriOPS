@@ -117,7 +117,7 @@ export function initialsOf(name: string): string {
 // Icons
 // ─────────────────────────────────────────────────────────────────────
 
-export type NavKind = 'dashboard' | 'athletes' | 'plans' | 'reports' | 'settings';
+export type NavKind = 'dashboard' | 'athletes' | 'plans' | 'reports' | 'integrations' | 'settings';
 export type AlertKind =
   | 'missed'    // legacy — overdue check-in
   | 'weight'    // weight variation
@@ -173,6 +173,14 @@ export function NavIcon({ kind }: { kind: NavKind }) {
           <path d="M3.5 2.5h6L12.5 5.5v8a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" />
           <path d="M9.5 2.5v3h3" />
           <path d="M5.5 9.5l1.5 1.5 2.5-3" />
+        </svg>
+      );
+    case 'integrations':
+      return (
+        <svg {...c} viewBox="0 0 16 16">
+          <path d="M6.5 4.5H5a3.5 3.5 0 0 0 0 7h1.5" />
+          <path d="M9.5 4.5H11a3.5 3.5 0 0 1 0 7H9.5" />
+          <path d="M5.75 8h4.5" />
         </svg>
       );
     case 'settings':

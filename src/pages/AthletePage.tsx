@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { pdf } from '@react-pdf/renderer';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { AthleteProfile } from '@/components/athlete/AthleteProfile';
 import { AthleteProgress } from '@/components/athlete/AthleteProgress';
 import { CheckinDetailModal } from '@/components/athlete/CheckinDetailModal';
@@ -270,6 +270,7 @@ export function AthletePage() {
 }
 
 function OverviewTab({
+  athleteId,
   alerts,
   latestCheckin,
   todaySessions,
@@ -299,6 +300,24 @@ function OverviewTab({
       <ReadinessSignalsCard checkin={latestCheckin} />
 
       <TodayPlanCard target={todayTarget} sessions={todaySessions} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Données santé connectées</CardTitle>
+          <Link
+            to={`/integrations?athleteId=${athleteId}`}
+            className="text-[12px] font-medium"
+            style={{ color: TOKENS.TEAL }}
+          >
+            Gérer
+          </Link>
+        </CardHeader>
+        <CardBody>
+          <p className="text-[13px] leading-5 text-slate-500">
+            Connecte WHOOP après l'onboarding pour importer sommeil, récupération, strain et workouts sans interrompre la saisie du profil.
+          </p>
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader>

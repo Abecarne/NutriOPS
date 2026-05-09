@@ -13,6 +13,8 @@ import { WeeklyCheckinPage } from '@/pages/WeeklyCheckinPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { DesignDashboard } from '@/pages/DesignDashboard';
 import { OnboardingPage } from '@/pages/OnboardingPage';
+import { IntegrationsPage } from '@/pages/IntegrationsPage';
+import { WhoopCallbackPage } from '@/pages/WhoopCallbackPage';
 
 export default function App() {
   return (
@@ -78,6 +80,26 @@ export default function App() {
             <ProtectedRoute>
               <AppLayout>
                 <ReportsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <IntegrationsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations/whoop/callback"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <WhoopCallbackPage />
               </AppLayout>
             </ProtectedRoute>
           }

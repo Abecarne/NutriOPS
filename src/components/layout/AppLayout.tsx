@@ -29,6 +29,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     { kind: 'athletes', label: 'Athletes', href: '/athletes' },
     { kind: 'plans', label: 'Plans', href: '/plans' },
     { kind: 'reports', label: 'Reports', href: '/reports' },
+    { kind: 'integrations', label: 'Integrations', href: '/integrations' },
     { kind: 'settings', label: 'Settings', href: '/settings' },
   ];
 
@@ -128,6 +129,7 @@ function RouterLink({
 
 function getActiveKind(pathname: string): NavKind {
   if (pathname.startsWith('/settings')) return 'settings';
+  if (pathname.startsWith('/integrations')) return 'integrations';
   if (pathname.startsWith('/athletes')) return 'athletes';
   if (pathname.startsWith('/plans')) return 'plans';
   if (pathname.startsWith('/reports')) return 'reports';
@@ -139,6 +141,12 @@ function getTopbarCopy(pathname: string): { title: string; subtitle: string } {
     return {
       title: 'Settings.',
       subtitle: 'Branding, account details, and report presentation.',
+    };
+  }
+  if (pathname.startsWith('/integrations')) {
+    return {
+      title: 'Integrations.',
+      subtitle: 'Health data sync, wearable history, and readiness context.',
     };
   }
   if (pathname === '/athletes') {
